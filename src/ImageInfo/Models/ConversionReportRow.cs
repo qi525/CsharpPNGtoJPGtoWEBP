@@ -36,5 +36,28 @@ namespace ImageInfo.Models
         public bool Success { get; set; }
         /// <summary>转换失败时的错误信息（如果有）。</summary>
         public string? ErrorMessage { get; set; }
+
+        // AI Metadata fields
+        /// <summary>AI 生成的 prompt（Stable Diffusion 或其它文生图模型）。</summary>
+        public string? AIPrompt { get; set; }
+        /// <summary>AI 生成的负 prompt。</summary>
+        public string? AINegativePrompt { get; set; }
+        /// <summary>使用的 AI 模型名称（如 "sd-1.5", "sd-xl" 等）。</summary>
+        public string? AIModel { get; set; }
+        /// <summary>生成时的随机种子。</summary>
+        public string? AISeed { get; set; }
+        /// <summary>采样器/调度器名称。</summary>
+        public string? AISampler { get; set; }
+        /// <summary>其他 AI 相关信息（步数、guidance scale 等）。</summary>
+        public string? AIMetadata { get; set; }
+
+        /// <summary>源文件创建时间（UTC）。</summary>
+        public DateTime? SourceCreatedUtc { get; set; }
+        /// <summary>源文件修改时间（UTC）。</summary>
+        public DateTime? SourceModifiedUtc { get; set; }
+
+        /// <summary>报告生成的时间戳（ISO 8601 格式，UTC）。</summary>
+        public string? ReportTimestamp { get; set; }
     }
 }
+

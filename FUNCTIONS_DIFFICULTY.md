@@ -16,19 +16,41 @@
 | MetadataService.NormalizeAndDedup | 20 | 规范化和去重标签 | System, System.Linq | 官方 | 规范化 | 低 | 处理超长字符串或包含控制字符的字段可能导致内存或显示问题；去重逻辑需防止性能异常。 | 中 |
 | MetadataService.CollectAllMetadataTags | 25 | 收集所有元数据来源 tag | MetadataExtractor | 第三方 | 收集 | 中 | 聚合 PNG/EXIF/XMP 等元数据可能收集到 GPS、作者、prompt、版权等敏感字段，若上报或存储会导致隐私泄露。 | 中 |
 | MetadataService.ExtractTagsAndTimes | 25 | 【本项目自写】主入口，协调各子函数 | System.IO, System.Linq | 自写 | 协调 | 中 | 作为聚合入口会把多个来源的敏感信息汇总，若未经脱敏即导出（如 XLSX）会放大泄露风险；异常处理需严谨避免崩溃。 | 低 |
-| MetadataService.ParsePngText | 35 | 提取 PNG tEXt 文本 | MetadataExtractor.Formats.Png.PngDirectory | 第三方 | PNG | 中 | PNG 的 tEXt 字段常包含描述或 prompt，可能泄露生成提示、注释或版权信息；字段任意性高。 | 低 |
-| MetadataService.ParseExifTags | 35 | 提取 EXIF 及其它目录 tag | MetadataExtractor.Formats.Exif.ExifSubIfdDirectory | 第三方 | EXIF | 高 | EXIF 可能包含 GPS 坐标、设备序列号、拍摄时间等敏感信息，若不加处理直接导出会造成严重隐私泄露或安全问题。 | 中 |
-| MetadataService.ParseXmpTags | 40 | 提取 XMP 目录标签 | MetadataExtractor.Formats.Xmp.XmpDirectory | 第三方 | XMP | 高 | XMP 可承载丰富结构化元数据与嵌入资源（关键词、作者、版权、嵌入数据）；解析复杂、且字段可能包含敏感 prompt 或机密，风险最高。 | 高 |
+| PngMetadataExtractor.ReadAIMetadata | 32 | 从 PNG tEXt 块读取 AI 元数据 | MetadataExtractor.Formats.Png | 第三方 | PNG读 | 中 | PNG tEXt 字段常包含 prompt，若直接导出会泄露生成提示信息。 | 低 |
+| PngMetadataExtractor.WriteAIMetadata | 38 | 将元数据写入 PNG tEXt 块 | 需第三方扩展 | 待实现 | PNG写 | 中 | PNG 字节级操作容易破坏文件结构；写入时需确保不覆盖关键块。 | 高 |
+| PngMetadataExtractor.VerifyAIMetadata | 30 | 验证 PNG 元数据一致性 | MetadataExtractor | 第三方 | PNG验 | 低 | 验证逻辑应容忍小差异（如标准化问题）。 | 低 |
+| JpegMetadataExtractor.ReadAIMetadata | 35 | 从 JPEG EXIF 段读取元数据 | MetadataExtractor.Formats.Exif | 第三方 | JPEG读 | 高 | EXIF 可能包含 GPS、设备序列号等敏感信息；prompt 存储在 ImageDescription 或 UserComment。 | 中 |
+| JpegMetadataExtractor.WriteAIMetadata | 40 | 将元数据写入 JPEG EXIF | 需 ImageMagick 或 P/Invoke | 待实现 | JPEG写 | 中 | JPEG EXIF 写入复杂，需严格遵循规范避免破坏文件。 | 高 |
+| JpegMetadataExtractor.VerifyAIMetadata | 30 | 验证 JPEG 元数据一致性 | MetadataExtractor | 第三方 | JPEG验 | 低 | 验证时应检查关键 EXIF 字段。 | 低 |
+| WebPMetadataExtractor.ReadAIMetadata | 36 | 从 WebP 的 XMP/EXIF 读取元数据 | MetadataExtractor | 第三方 | WebP读 | 高 | WebP XMP 支持自定义命名空间，可能包含多种工具特定的元数据格式。 | 中 |
+| WebPMetadataExtractor.WriteAIMetadata | 40 | 将元数据写入 WebP | 需 libwebp 扩展 | 待实现 | WebP写 | 中 | WebP 容器格式复杂，元数据写入需使用专门库。 | 高 |
+| WebPMetadataExtractor.VerifyAIMetadata | 32 | 验证 WebP 元数据一致性 | MetadataExtractor | 第三方 | WebP验 | 低 | 验证时需同时检查 XMP 和 EXIF 字段。 | 低 |
 | ImageConverter.ConvertJpegToWebP | 40 | JPEG 转 WebP | SkiaSharp | 第三方 | 转换 | 低 | 与其它转换类似，解码/编码过程中可能触发解析器漏洞或资源消耗；注意输出覆盖与路径安全。 | 低 |
 | ImageConverter.ConvertPngToWebP | 40 | PNG 转 WebP | SkiaSharp | 第三方 | 转换 | 低 | 同上：处理不可信输入可能带来解析风险，写入需要防止覆盖与权限问题。 | 低 |
 
-实现建议：如遇到复杂逻辑（如元数据深度解析），可拆分为更小的函数：
+实现建议：
 
-- `ParsePngText(PngDirectory)`
-- `ParseExifTags(ExifSubIfdDirectory)`
-- `ParseXmp(XmpDirectory)`
+**元数据提取的格式特化原则**：
 
-这样每个函数职责单一、易于测试与维护。
+项目已将原来的通用 `MetadataService` 拆分为三个专化服务，以避免不同格式的实现相互干扰：
+
+- `PngMetadataExtractor`：仅处理 PNG tEXt 块（通常包含 Stable Diffusion WebUI 格式的 prompt）
+- `JpegMetadataExtractor`：仅处理 JPEG EXIF 段（ImageDescription 或 UserComment 字段）
+- `WebPMetadataExtractor`：仅处理 WebP 容器的 XMP 和 EXIF（通常 ComfyUI 等工具使用 XMP）
+
+**为什么要分离**：
+
+1. **格式差异大**：三种格式的元数据存储方式完全不同，混在一起会导致代码充斥着格式判断逻辑
+2. **难度不同**：PNG 读写相对简单，JPEG EXIF 复杂，WebP XMP 最复杂，分离便于按难度优先级实现
+3. **维护性**：修改某个格式的处理方式不会影响其他格式
+4. **可测试性**：每个格式的提取器可独立单元测试，不需要处理多格式混合情况
+5. **可扩展性**：支持新格式（如 TIFF、GIF）时只需添加新的提取器，不需要修改现有代码
+
+**优化空间**：
+
+- `WriteAIMetadata` 方法目前为占位符，需要使用第三方库实现实际的元数据写入
+- `VerifyAIMetadata` 验证时允许小差异，应明确定义容差范围
+- 可添加日志记录以追踪元数据提取失败的原因
 实现建议：如果某个元数据解析步骤显得复杂（例如 XMP 深度解析），可以把复杂逻辑拆成更小的解析函数：
 
 - `ParsePngText(PngDirectory)`

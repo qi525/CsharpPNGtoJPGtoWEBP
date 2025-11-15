@@ -15,43 +15,63 @@ namespace ImageInfo.Services
     public static class ReportService
     {
         /// <summary>
-        /// 将给定的 <paramref name="rows"/> 写入一个 XLSX 文件（路径为 <paramref name="outPath"/>）。
+        /// 将给定的 <paramref name="rows"/> 写入一个 XLSX 文件，自动按时间戳命名。
         /// 可选参数 <paramref name="openAfterSave"/> 控制在保存后是否尝试用系统默认应用打开该文件（最佳努力）。
+        /// 长文本字段（>1000字符）将被截断并添加省略号，以避免超过 Excel 单元格限制。
+        /// 同时生成日志文件记录报告统计信息。
         /// </summary>
         /// <param name="rows">要写入到表格的行集合</param>
-        /// <param name="outPath">输出文件路径（.xlsx）</param>
+        /// <param name="outPath">输出文件路径基础（将自动添加时间戳，如 conversion-report-20251116-143022.xlsx）</param>
         /// <param name="openAfterSave">是否在保存后尝试打开（默认 false）</param>
         public static void WriteConversionReport(IEnumerable<ConversionReportRow> rows, string outPath, bool openAfterSave = false)
         {
+            // 生成时间戳并更新输出路径
+            var timestamp = DateTime.UtcNow.ToString("yyyyMMdd-HHmmss");
+            var dir = Path.GetDirectoryName(outPath) ?? string.Empty;
+            var fileName = Path.GetFileNameWithoutExtension(outPath);
+            var timestampedPath = Path.Combine(dir, $"{fileName}-{timestamp}.xlsx");
+
             using var wb = new XLWorkbook();
             var ws = wb.Worksheets.Add("Conversions");
 
-            // Header
+            // Header (Chinese) - 添加报告时间戳列
             var headers = new[] {
-                "SourcePath", "DestPath",
-                "SourceWidth", "SourceHeight", "SourceFormat", "SourceParams",
-                "DestWidth", "DestHeight", "DestFormat", "DestParams",
-                "Success", "ErrorMessage"
+                "源文件路径", "目标文件路径",
+                "源宽度", "源高度", "源格式", "源参数",
+                "目标宽度", "目标高度", "目标格式", "目标参数",
+                "转换成功", "错误信息",
+                "AI Prompt", "AI 负 Prompt", "AI 模型", "AI 种子", "AI 采样器", "AI 其他信息",
+                "源创建时间", "源修改时间", "报告时间戳"
             };
 
             for (int i = 0; i < headers.Length; i++)
                 ws.Cell(1, i + 1).Value = headers[i];
 
             int r = 2;
+            var reportTimestamp = DateTime.UtcNow.ToString("o"); // ISO 8601
             foreach (var row in rows)
             {
-                ws.Cell(r, 1).Value = row.SourcePath;
-                ws.Cell(r, 2).Value = row.DestPath;
+                ws.Cell(r, 1).Value = TruncateIfNeeded(row.SourcePath, 1000);
+                ws.Cell(r, 2).Value = TruncateIfNeeded(row.DestPath, 1000);
                 ws.Cell(r, 3).Value = row.SourceWidth;
                 ws.Cell(r, 4).Value = row.SourceHeight;
-                ws.Cell(r, 5).Value = row.SourceFormat;
-                ws.Cell(r, 6).Value = row.SourceParams;
+                ws.Cell(r, 5).Value = TruncateIfNeeded(row.SourceFormat, 100);
+                ws.Cell(r, 6).Value = TruncateIfNeeded(row.SourceParams, 200);
                 ws.Cell(r, 7).Value = row.DestWidth;
                 ws.Cell(r, 8).Value = row.DestHeight;
-                ws.Cell(r, 9).Value = row.DestFormat;
-                ws.Cell(r, 10).Value = row.DestParams;
+                ws.Cell(r, 9).Value = TruncateIfNeeded(row.DestFormat, 100);
+                ws.Cell(r, 10).Value = TruncateIfNeeded(row.DestParams, 200);
                 ws.Cell(r, 11).Value = row.Success;
-                ws.Cell(r, 12).Value = row.ErrorMessage;
+                ws.Cell(r, 12).Value = TruncateIfNeeded(row.ErrorMessage, 500);
+                ws.Cell(r, 13).Value = TruncateIfNeeded(row.AIPrompt, 1000);
+                ws.Cell(r, 14).Value = TruncateIfNeeded(row.AINegativePrompt, 1000);
+                ws.Cell(r, 15).Value = TruncateIfNeeded(row.AIModel, 200);
+                ws.Cell(r, 16).Value = TruncateIfNeeded(row.AISeed, 100);
+                ws.Cell(r, 17).Value = TruncateIfNeeded(row.AISampler, 100);
+                ws.Cell(r, 18).Value = TruncateIfNeeded(row.AIMetadata, 1000);
+                ws.Cell(r, 19).Value = row.SourceCreatedUtc?.ToString("u");
+                ws.Cell(r, 20).Value = row.SourceModifiedUtc?.ToString("u");
+                ws.Cell(r, 21).Value = reportTimestamp;
                 r++;
             }
 
@@ -59,11 +79,13 @@ namespace ImageInfo.Services
             ws.Columns().AdjustToContents();
 
             // Ensure directory exists
-            var dir = Path.GetDirectoryName(outPath);
             if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir))
                 Directory.CreateDirectory(dir);
 
-            wb.SaveAs(outPath);
+            wb.SaveAs(timestampedPath);
+            
+            // Write log entry
+            LogReportGeneration(timestampedPath, rows);
 
             if (openAfterSave)
             {
@@ -72,7 +94,7 @@ namespace ImageInfo.Services
                     // On Windows, launch with UseShellExecute so the default app opens the file.
                     if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
                     {
-                        var psi = new ProcessStartInfo(outPath)
+                        var psi = new ProcessStartInfo(timestampedPath)
                         {
                             UseShellExecute = true
                         };
@@ -81,18 +103,68 @@ namespace ImageInfo.Services
                     else if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
                     {
                         // Try xdg-open on Linux
-                        Process.Start("xdg-open", outPath);
+                        Process.Start("xdg-open", timestampedPath);
                     }
                     else if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
                     {
                         // macOS open command
-                        Process.Start("open", outPath);
+                        Process.Start("open", timestampedPath);
                     }
                 }
                 catch
                 {
                     // best-effort: do not throw from report opening
                 }
+            }
+        }
+
+        /// <summary>
+        /// 截断字符串以避免超过 XLSX 单元格限制（32767 字符）。
+        /// 如果字符串长度超过 maxLength，返回截断后的字符串加省略号。
+        /// </summary>
+        private static string TruncateIfNeeded(string? text, int maxLength)
+        {
+            if (string.IsNullOrEmpty(text))
+                return string.Empty;
+
+            if (text.Length <= maxLength)
+                return text;
+
+            return text.Substring(0, maxLength - 3) + "...";
+        }
+
+        /// <summary>
+        /// 将报告生成信息记录到日志文件。
+        /// 日志文件位置：{reportDir}/conversion-log.txt
+        /// 记录内容：生成时间、转换总数、成功/失败数、成功率等统计信息。
+        /// </summary>
+        private static void LogReportGeneration(string reportPath, IEnumerable<ConversionReportRow> rows)
+        {
+            try
+            {
+                var reportDir = Path.GetDirectoryName(reportPath) ?? string.Empty;
+                var logFile = Path.Combine(reportDir, "conversion-log.txt");
+
+                var rowList = rows is List<ConversionReportRow> list ? list : new List<ConversionReportRow>(rows);
+                var successCount = rowList.Count(r => r.Success);
+                var failureCount = rowList.Count(r => !r.Success);
+
+                var logEntry = $@"
+================================================================================
+报告生成时间: {DateTime.UtcNow:yyyy-MM-dd HH:mm:ss} (UTC)
+报告文件: {Path.GetFileName(reportPath)}
+总转换数: {rowList.Count}
+成功数: {successCount}
+失败数: {failureCount}
+成功率: {(rowList.Count > 0 ? (double)successCount / rowList.Count * 100 : 0):F2}%
+================================================================================
+";
+
+                File.AppendAllText(logFile, logEntry);
+            }
+            catch
+            {
+                // 日志写入失败不应中断主流程
             }
         }
     }

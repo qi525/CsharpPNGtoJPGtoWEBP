@@ -1,0 +1,1279 @@
+# 🎯 项目开发纲领准则 v1.1
+
+**适用范围**：个人项目至多人协作项目 | **更新周期**：根据实践动态调整  
+**文档类型**：纲领性指导 + 检查清单 | **参考级别**：团队必读 + Code Review 标准  
+**v1.1 更新**：添加时间戳与日志规范、文件时间戳处理、XLSX 单元格超大文本处理
+
+---
+
+## 目录
+
+1. [核心开发哲学](#核心开发哲学)
+2. [项目分类与复杂度评估](#项目分类与复杂度评估)
+3. [需求阶段规范](#需求阶段规范)
+4. [架构与设计规范](#架构与设计规范)
+5. [编码规范与质量标准](#编码规范与质量标准)
+6. [文档体系建设](#文档体系建设)
+7. [测试与验证策略](#测试与验证策略)
+8. [依赖管理与安全](#依赖管理与安全)
+9. [多人协作标准](#多人协作标准)
+10. [预测报告与风险管理](#预测报告与风险管理)
+11. [时间戳与日志规范](#时间戳与日志规范)
+12. [发布与维护流程](#发布与维护流程)
+13. [检查清单](#检查清单)
+
+---
+
+## 核心开发哲学
+
+### 基本原则
+
+1. **单一职责原则（SRP）**
+   - 每个模块/类/函数只做一件事，做好一件事
+   - 避免职责混杂导致维护困难
+   - 示例：`FileScanner` 仅负责扫描；元数据提取拆分为 `PngMetadataExtractor`、`JpegMetadataExtractor`、`WebPMetadataExtractor`
+
+2. **格式特化原则**
+   - 不同的文件格式有完全不同的元数据存储方式
+   - PNG 使用 tEXt 块、JPEG 使用 EXIF、WebP 使用 XMP/EXIF
+   - **不应该**将不同格式的实现混在一个类中，即使逻辑相似
+   - 将每个格式的实现独立为一个专化服务，便于维护和扩展
+   - 示例：
+     ```csharp
+     // ❌ 不推荐：混合实现
+     class MetadataExtractor {
+         ReadPngMetadata() { /* PNG tEXt 逻辑 */ }
+         ReadJpegMetadata() { /* JPEG EXIF 逻辑 */ }
+         ReadWebPMetadata() { /* WebP XMP 逻辑 */ }
+     }
+     
+     // ✅ 推荐：格式特化
+     class PngMetadataExtractor { ReadAIMetadata() { /* 仅 PNG tEXt */ } }
+     class JpegMetadataExtractor { ReadAIMetadata() { /* 仅 JPEG EXIF */ } }
+     class WebPMetadataExtractor { ReadAIMetadata() { /* 仅 WebP XMP */ } }
+     ```
+
+2. **极简优先**
+   - 代码量少不是目标，但过度设计是敌人
+   - 优先可读性 > 优先性能（除非有明确性能需求）
+   - 模块少 → 学习曲线平缓 → 维护成本低
+
+3. **分层清晰化**
+   - 核心程序 (Program.cs) ← 编排层 (Service) ← 基础设施层 (Model/Utils)
+   - 下层不依赖上层，信息沿树向下流动
+   - 示例：Program.cs ~15 行，仅调用入口 Service；服务层处理具体逻辑
+
+4. **读-写-验证三步法**（Read-Write-Verify Pattern）
+   - **读**：读取源数据/状态
+   - **写**：进行数据变换/操作
+   - **验证**：读回数据确保一致性
+   - 保证数据完整性和操作可追溯性
+
+5. **失败即文档**
+   - 异常处理不是吞咽错误，而是记录、报告、决策
+   - 错误信息应包含**发生位置、原因、建议的恢复手段**
+   - 在报告中保留完整错误链，便于事后分析
+
+---
+
+## 项目分类与复杂度评估
+
+### 项目类型划分
+
+| 类型 | 代码行数 | 模块数 | 依赖数 | 文档需求 | 测试覆盖 | 适用场景 |
+|------|--------|------|------|--------|--------|--------|
+| **微型** | < 500 | 1-2 | 0-2 | README | 基础测试 | 脚本、一次性工具 |
+| **小型** | 500-2K | 2-5 | 2-5 | README + API注释 | 50%+ 覆盖 | 学习项目、内部工具 |
+| **中型** | 2K-10K | 5-15 | 5-10 | README + 架构文档 + 难度表 | 70%+ 覆盖 | 生产级工具（如本项目） |
+| **大型** | 10K-50K | 15-50 | 10-30 | 完整文档体系 + RFD + 预测报告 | 80%+ 覆盖 | 企业应用、框架 |
+| **超大型** | 50K+ | 50+ | 30+ | 多维文档 + 架构决策记录 + 性能/安全报告 | 85%+ 覆盖 | 系统级软件 |
+
+### 复杂度多维度评估
+
+项目复杂度 = 多维评分综合
+
+```
+总体复杂度指数 (CCI) = (代码复杂度 × 0.2) 
+                      + (依赖复杂度 × 0.2) 
+                      + (架构复杂度 × 0.25) 
+                      + (维护难度 × 0.15) 
+                      + (风险程度 × 0.2)
+
+CCI ∈ [0, 100]：
+  0-20   → 极低风险（脚本级）
+  20-40  → 低风险（学习项目）
+  40-60  → 中等风险（生产工具）
+  60-80  → 高风险（企业应用）
+  80-100 → 极高风险（核心系统）
+```
+
+#### 代码复杂度 (CC)
+- **度量**：圈复杂度 (Cyclomatic Complexity) + 函数数量 + 嵌套深度
+- **评级**：
+  - CC < 50：极低
+  - 50 ≤ CC < 150：低
+  - 150 ≤ CC < 300：中等
+  - 300 ≤ CC < 500：高
+  - CC ≥ 500：极高
+
+#### 依赖复杂度 (DC)
+- **评估维度**：依赖数量、依赖版本稳定性、已知漏洞数、社区活跃度
+- **评级**：
+  - 无外部依赖或全官方库：极低
+  - 1-3 成熟库（如 xUnit、SixLabors.ImageSharp）：低
+  - 4-8 混合库（官方 + 第三方）：中等
+  - 8+ 深度依赖树或实验性库：高
+  - 包含已知高危漏洞库：极高
+
+#### 架构复杂度 (AC)
+- **评估维度**：分层数、模块间耦合、数据流清晰度
+- **评级**：
+  - 单文件脚本：极低
+  - 2-3 层 (Model / Service / UI)：低
+  - 3-5 层 (含 Repository / Middleware)：中等
+  - 5+ 层或循环依赖：高
+  - 微服务 / 分布式 / 事件驱动：极高
+
+#### 维护难度 (MM)
+- **评估维度**：文档完整度、代码可读性、测试覆盖率、技术栈熟悉度
+- **评级**：
+  - 文档齐全 + 高覆盖测试 + 常见技术栈：极低
+  - 有基础文档 + 中等覆盖 + 主流技术栈：低
+  - 文档缺失或不清 + 低覆盖：中等
+  - 无文档 + 依赖失效 + 晦涩技术栈：高
+  - 代码混乱无文档 + 技术债积重难返：极高
+
+#### 风险程度 (RP)
+- **评估维度**：数据安全、系统可用性、用户隐私、恢复难度
+- **评级**：
+  - 本地工具、无敏感数据：极低
+  - 处理用户信息但无对外暴露：低
+  - 处理敏感业务数据或有网络接口：中等
+  - 处理支付、医疗或个人隐私数据：高
+  - 生命安全系统或金融核心系统：极高
+
+---
+
+## 需求阶段规范
+
+### 需求收集与分析
+
+**入口文档**：需求描述文档 (RDD) 或用户故事 (User Story)
+
+**RDD 模板**：
+```
+## 需求标题
+[清晰的功能名称]
+
+## 需求分类
+- 功能需求 / 非功能需求 / 约束需求
+
+## 业务背景
+[为什么要做这个]
+
+## 详细描述
+- 用户角色：[谁使用]
+- 输入：[接收什么]
+- 输出：[产出什么]
+- 约束条件：[环境、性能、兼容性]
+
+## 验收标准
+- [ ] 条件 1
+- [ ] 条件 2
+- [ ] 条件 3
+
+## 优先级与影响范围
+- 优先级：P0(必须) / P1(重要) / P2(可选)
+- 影响范围：哪些模块/用户
+
+## 关键风险与假设
+- 风险 1：...（缓解方案）
+- 假设 1：...（验证方法）
+```
+
+### 需求规范化检查清单
+
+- [ ] 需求是否可验证？（能否定量或定性地确认完成）
+- [ ] 需求是否可追溯？（能否反向映射到用户故事）
+- [ ] 需求之间是否有冲突？（需求兼容性分析）
+- [ ] 是否识别出了隐性需求？（如安全、可用性、可维护性）
+- [ ] 需求是否被分解为可实现的工作项？（故事点评估）
+
+---
+
+## 架构与设计规范
+
+### 架构设计文档 (ADD - Architecture Design Document)
+
+每个中型以上项目必须产出 ADD，包含：
+
+1. **系统愿景**
+   - 项目目标、作用范围、使用场景
+   - 与其他系统的交互关系
+
+2. **架构视图**
+   ```
+   ┌─────────────────────────────────────┐
+   │  表现层 / 入口点                      │  (Program.cs)
+   │  ├─ CLI / GUI / API                  │
+   └─────────────────────────────────────┘
+            ↓
+   ┌─────────────────────────────────────┐
+   │  业务逻辑层                          │  (Services)
+   │  ├─ ConversionService               │
+   │  ├─ MetadataService                 │
+   │  ├─ AIMetadataExtractor             │
+   │  ├─ FileTimeService                 │
+   │  └─ ValidationService               │
+   └─────────────────────────────────────┘
+            ↓
+   ┌─────────────────────────────────────┐
+   │  基础设施层                          │  (Models / Utils)
+   │  ├─ Models (ConversionReportRow)    │
+   │  ├─ System.IO (文件操作)            │
+   │  └─ 第三方库 (ImageSharp, etc)     │
+   └─────────────────────────────────────┘
+   ```
+
+3. **关键设计决策**
+   - 为什么选择该架构？
+   - 候选方案与权衡分析
+   - 示例：
+     ```
+     决策：使用 SixLabors.ImageSharp 代替 Magick.NET
+     原因：消除高危漏洞，降低依赖风险
+     权衡：ImageSharp 不原生支持 WebP → 改用 SkiaSharp
+     成本：2h 重构 + 测试
+     收益：安全性 ↑，依赖复杂度 ↓
+     ```
+
+4. **数据流与交互**
+   - 关键数据流程图（Read-Write-Verify 流程）
+   - 模块间的接口契约
+   - 异常与错误处理流
+
+5. **技术栈与依赖决策**
+   - 为什么选择该语言/框架？
+   - 依赖版本锁定与维护策略
+   - 兼容性与支持周期评估
+
+### 模块设计规范
+
+**每个模块应包含**：
+
+1. **职责声明**
+   ```
+   /// <summary>
+   /// FileScanner 负责文件系统扫描与图片文件枚举
+   /// 职责范围：递归遍历目录、按扩展名过滤
+   /// 不负责：元数据提取、文件内容验证
+   /// </summary>
+   public static class FileScanner { }
+   ```
+
+2. **公开接口清单**
+   ```
+   public static IEnumerable<string> GetImageFiles(string root)
+   // 输入：目录路径
+   // 输出：图片文件完整路径列表
+   // 异常：DirectoryNotFoundException, UnauthorizedAccessException
+   ```
+
+3. **依赖清单**
+   - 官方库：System.IO, System.Linq
+   - 第三方库：（无）
+   - 其他模块：（无）
+
+4. **测试覆盖**
+   - 单元测试：{ModuleName}Tests.cs
+   - 覆盖率目标：70% 以上
+
+---
+
+## 编码规范与质量标准
+
+### 命名约定
+
+| 元素 | 格式 | 示例 | 说明 |
+|-----|------|------|------|
+| 命名空间 | PascalCase | `ImageInfo.Services` | 反映组织结构 |
+| 类/接口 | PascalCase | `ImageConverter`, `IValidator` | 接口带 I 前缀 |
+| 方法 | PascalCase | `ConvertPngToJpeg()` | 动词优先 |
+| 参数 | camelCase | `sourcePath`, `quality` | 小写开头 |
+| 常量 | UPPER_SNAKE_CASE | `MAX_IMAGE_SIZE` | 全大写下划线分隔 |
+| 本地变量 | camelCase | `result`, `imageInfo` | 小写开头 |
+| 私有字段 | _camelCase | `_imageCache` | 下划线 + camelCase |
+| 属性 | PascalCase | `FilePath`, `Tags` | 同类命名 |
+
+### 代码深度与复杂度限制
+
+**基本规则**：
+- 函数行数：≤ 50 行（不含注释）
+- 条件嵌套深度：≤ 3 层（if/for/while 最多 3 层）
+- 参数数量：≤ 4 个（超过 4 个，考虑使用对象或可选参数）
+- 圈复杂度（CC）：≤ 10（单个函数）
+- 类的方法数：≤ 15 个（超过 15，考虑拆分）
+
+**违反时的处理**：
+```csharp
+// ❌ 不良：过度复杂
+public bool ProcessImage(string path, int quality, bool preserveAlpha, 
+                         string format, int width, int height, 
+                         bool autoScale, string output)
+{
+    if (!File.Exists(path)) return false;
+    var img = Image.Load(path);
+    if (preserveAlpha)
+    {
+        if (format == "jpg")
+        {
+            // ... 处理透明度
+        }
+        else if (format == "webp")
+        {
+            // ... 另一套处理
+        }
+    }
+    // ... 30+ 行代码
+}
+
+// ✅ 良好：拆分为多个小函数
+public bool ProcessImage(ImageProcessOptions options)
+{
+    var image = LoadImage(options.Path);
+    if (image == null) return false;
+    
+    var processed = ApplyPreprocessing(image, options);
+    return SaveImage(processed, options.Output, options.Format);
+}
+
+private Image ApplyPreprocessing(Image img, ImageProcessOptions opts)
+{
+    return opts.PreserveAlpha 
+        ? HandleAlphaChannel(img, opts.Format) 
+        : img;
+}
+```
+
+### 异常处理规范
+
+**原则**：
+1. **不使用异常做控制流**（如 try-catch 代替 if-else）
+2. **捕获具体异常**，不用裸 `catch (Exception)`
+3. **异常必须带上下文信息**
+4. **关键操作需记录日志**
+
+**示例**：
+```csharp
+// ❌ 不良
+try
+{
+    return Image.Load(path);
+}
+catch (Exception)
+{
+    return null;  // 吞咽异常，无法诊断
+}
+
+// ✅ 良好
+public Image? TryLoadImage(string path)
+{
+    try
+    {
+        if (!File.Exists(path))
+            throw new FileNotFoundException($"Image not found: {path}");
+        
+        return Image.Load(path);
+    }
+    catch (FileNotFoundException ex)
+    {
+        Logger.Warn($"Failed to load image at {path}: {ex.Message}");
+        return null;
+    }
+    catch (UnknownImageFormatException ex)
+    {
+        Logger.Error($"Unsupported image format at {path}: {ex.Message}");
+        throw new InvalidOperationException($"Cannot process {path}", ex);
+    }
+    catch (OutOfMemoryException ex)
+    {
+        Logger.Fatal($"Out of memory loading {path}: {ex.Message}");
+        throw;
+    }
+}
+```
+
+### XML 文档注释规范
+
+每个公开类/方法必须包含 XML 注释：
+
+```csharp
+/// <summary>
+/// 将 PNG 转换为 JPEG 格式，白色替代透明背景。
+/// </summary>
+/// <remarks>
+/// 该方法使用 SixLabors.ImageSharp 进行转换。
+/// 质量参数范围 [1, 100]，推荐值 85。
+/// </remarks>
+/// <param name="pngPath">源 PNG 文件路径</param>
+/// <param name="outPath">输出 JPEG 路径（可选，默认同目录同名）</param>
+/// <param name="quality">JPEG 质量参数 [1-100]，默认 85</param>
+/// <returns>输出文件的完整路径</returns>
+/// <exception cref="FileNotFoundException">源文件不存在</exception>
+/// <exception cref="InvalidOperationException">格式不受支持或转换失败</exception>
+/// <example>
+/// <code>
+/// var outPath = ImageConverter.ConvertPngToJpeg("input.png", quality: 90);
+/// Console.WriteLine($"Converted to: {outPath}");
+/// </code>
+/// </example>
+public static string ConvertPngToJpeg(string pngPath, string? outPath = null, int quality = 85)
+{
+    // 实现
+}
+```
+
+### SOLID 原则检查
+
+| 原则 | 检查项 | 本项目示例 |
+|-----|------|---------|
+| **S** (Single) | 一个类只有一个变化原因 | FileScanner 仅负责扫描；元数据提取交给 MetadataService |
+| **O** (Open) | 对扩展开放，对修改关闭 | 添加新转换格式时，扩展 ImageConverter 而非修改现有代码 |
+| **L** (Liskov) | 子类可替代父类 | 若使用接口 IImageConverter，所有实现必须遵循相同契约 |
+| **I** (Interface) | 接口细分，避免"污染" | 不应有包含 20+ 方法的巨大接口 |
+| **D** (Dependency) | 依赖抽象而非具体 | 如需多种元数据源，定义 IMetadataReader 接口 |
+
+---
+
+## 文档体系建设
+
+项目文档应该接近 **官方文档 + TODO 清单 + 备注的结合体**。
+
+### 必备文档清单
+
+#### 1. README.md（首页）
+**用途**：快速入门 | **目标用户**：新人、使用者  
+**包含内容**：
+- 项目一句话概述
+- 核心特性列表（Bullet points）
+- 快速开始（最少 3 行命令）
+- 项目结构（目录树）
+- 依赖说明（官方 vs 第三方）
+- 学习路线（推荐阅读顺序）
+- 常见问题 (FAQ)
+
+#### 2. ARCHITECTURE.md（架构文档）
+**用途**：设计决策记录 | **目标用户**：开发者、架构师  
+**包含内容**：
+- 系统愿景与范围
+- 高层架构图（数据流）
+- 关键设计决策与权衡
+- 技术栈选型理由
+- 模块职责划分
+- 依赖管理策略
+
+#### 3. FUNCTIONS_DIFFICULTY.md（函数难度与风险表）
+**用途**：学习路线 + 风险警示 | **目标用户**：开发者、学习者  
+**包含内容**：
+- 函数名 → 难度系数（0-100）
+- 简要说明（一句话）
+- 使用的库（官方/第三方）
+- 两字概括（便于快速检索）
+- **入侵性/危害性**（低/中/高）
+- **隐患详细**（潜在风险说明）
+- **优化空间**（改进方向）
+
+#### 4. TESTING.md（测试策略）
+**用途**：测试覆盖与验证 | **目标用户**：开发者、QA  
+**包含内容**：
+- 测试分类（单元/集成/端到端）
+- 覆盖率目标与现状
+- 测试数据说明
+- 如何运行测试（命令行）
+- 已知的缺陷或 Skip 的测试及原因
+
+#### 5. CHANGELOG.md（变更日志）
+**用途**：版本追踪 | **目标用户**：使用者、维护者  
+**格式**：
+```
+## [版本号] - 日期
+
+### Added
+- 新功能 1
+- 新功能 2
+
+### Changed
+- 修改说明 1
+- 修改说明 2
+
+### Fixed
+- 修复的 Bug 1
+
+### Deprecated
+- 将要移除的功能
+
+### Security
+- 安全修复
+```
+
+#### 6. CONTRIBUTING.md（贡献指南）
+**用途**：多人协作入门 | **目标用户**：贡献者  
+**包含内容**：
+- 贡献流程（Fork → Branch → PR）
+- 代码风格检查清单
+- 提交消息规范
+- 如何本地开发与测试
+- Pull Request 检查清单
+
+#### 7. PROJECT_CHARTER.md（本文档）
+**用途**：统一规范 | **目标用户**：所有参与者  
+**包含内容**：
+- 核心开发哲学
+- 编码规范
+- 文档体系
+- 多人协作标准
+- 发布流程
+
+#### 8. RISK_ASSESSMENT.md（风险评估报告）
+**用途**：项目风险预测 | **目标用户**：项目经理、架构师  
+**包含内容**：参考 [预测报告与风险管理](#预测报告与风险管理)
+
+### 文档维护规则
+
+| 文档 | 更新频率 | 触发条件 |
+|-----|--------|--------|
+| README | 每 1-2 周 | 新功能、依赖变更 |
+| ARCHITECTURE | 每 1-2 月 | 架构调整、重要决策 |
+| FUNCTIONS_DIFFICULTY | 每月 | 新函数、复杂度变化 |
+| CHANGELOG | 每次发布 | 新版本上线 |
+| CONTRIBUTING | 每季度 | 工作流调整、规范更新 |
+| 代码注释 | 实时 | 每次代码提交 |
+
+---
+
+## 测试与验证策略
+
+### 测试金字塔
+
+```
+        /\
+       /  \           E2E 测试（5%）
+      /    \          验证完整工作流
+     /------\
+    /        \        集成测试（15%）
+   /          \       验证模块间交互
+  /            \
+ /              \     单元测试（80%）
+/________________\    验证单个函数
+```
+
+### 单元测试规范
+
+**命名**：`{TargetClass}Tests.cs`  
+**框架**：xUnit + FluentAssertions（可选）
+
+```csharp
+public class ImageConverterTests
+{
+    private const string _testImagePath = "test_image.png";
+    
+    public ImageConverterTests()
+    {
+        // Setup 测试数据
+    }
+    
+    [Fact]
+    public void ConvertPngToJpeg_ValidInput_ReturnsOutputPath()
+    {
+        // Arrange
+        var inputPath = Path.Combine(Path.GetTempPath(), _testImagePath);
+        // 生成测试图片...
+        
+        // Act
+        var result = ImageConverter.ConvertPngToJpeg(inputPath);
+        
+        // Assert
+        Assert.NotEmpty(result);
+        Assert.True(File.Exists(result));
+        Assert.EndsWith(".jpg", result);
+    }
+    
+    [Theory]
+    [InlineData(0)]      // 质量过低
+    [InlineData(101)]    // 质量过高
+    public void ConvertPngToJpeg_InvalidQuality_ThrowsException(int quality)
+    {
+        // Arrange
+        var inputPath = Path.Combine(Path.GetTempPath(), _testImagePath);
+        
+        // Act & Assert
+        Assert.Throws<ArgumentOutOfRangeException>(
+            () => ImageConverter.ConvertPngToJpeg(inputPath, quality: quality)
+        );
+    }
+}
+```
+
+### 测试覆盖率目标
+
+| 项目类型 | 覆盖率目标 | 覆盖范围 |
+|---------|----------|--------|
+| 微型 | 30% | 关键路径 |
+| 小型 | 50% | 核心功能 |
+| 中型 | 70% | 除极端边界 |
+| 大型 | 80% | 除遗留代码 |
+| 超大型 | 85%+ | 包括边界 |
+
+### Read-Write-Verify 验证模式
+
+每个转换/修改操作必须遵循三步法：
+
+```csharp
+public static void ConvertAndVerify(string sourcePath, string destPath)
+{
+    // 第一步：读取源数据
+    var sourceImage = Image.Load(sourcePath);
+    var (createdUtc, modifiedUtc) = FileTimeService.ReadFileTimes(sourcePath);
+    var aiMetadata = AIMetadataExtractor.ReadAIMetadata(sourcePath);
+    
+    // 第二步：执行转换/修改
+    var convertedImage = ImageConverter.ConvertPngToJpeg(sourcePath, destPath);
+    FileTimeService.WriteFileTimes(destPath, createdUtc, modifiedUtc);
+    AIMetadataExtractor.WriteAIMetadata(destPath, aiMetadata);
+    
+    // 第三步：验证一致性
+    var (destCreatedUtc, destModifiedUtc) = FileTimeService.ReadFileTimes(destPath);
+    var destAiMetadata = AIMetadataExtractor.ReadAIMetadata(destPath);
+    
+    Assert.True(FileTimeService.VerifyFileTimes(destPath, modifiedUtc));
+    Assert.True(AIMetadataExtractor.VerifyAIMetadata(destPath, aiMetadata));
+    Assert.True(ValidationService.ValidateConversion(sourcePath, destPath));
+}
+```
+
+---
+
+## 依赖管理与安全
+
+### 依赖决策框架
+
+**评估新依赖前，必须回答以下问题**：
+
+| 问题 | 权重 | 评分方法 |
+|-----|------|--------|
+| 1. 是否必需？能否用官方库替代？ | 20% | 是(10分) / 否(0分) |
+| 2. 库的成熟度与社区活跃度？ | 20% | GitHub Star > 1K(10) / 100-1K(8) / <100(5) |
+| 3. 是否有已知高危漏洞？ | 25% | 无(10) / 已修复(5) / 未修复(0) |
+| 4. 文档完整度与可维护性？ | 15% | 完整(10) / 一般(5) / 缺失(0) |
+| 5. 依赖树深度与复杂度？ | 20% | 直接依赖(10) / 1层(8) / 2+层(5) |
+
+**总分 ≥ 80** 才能引入依赖。
+
+### 依赖版本锁定
+
+```xml
+<!-- csproj 中必须明确指定版本 -->
+<ItemGroup>
+  <PackageReference Include="SixLabors.ImageSharp" Version="3.1.11" />
+  <PackageReference Include="SkiaSharp" Version="2.88.8" />
+  <PackageReference Include="ClosedXML" Version="0.105.0" />
+</ItemGroup>
+```
+
+### 安全审计检查清单
+
+- [ ] 是否运行了 `dotnet list package --vulnerable`？
+- [ ] 所有依赖的许可证是否符合项目政策（如 MIT、Apache 2.0）？
+- [ ] 是否有废弃或停止维护的库？
+- [ ] NuGet 包来源是否受信？（应使用官方 nuget.org）
+- [ ] 是否定期检查依赖更新？（建议每月）
+
+---
+
+## 多人协作标准
+
+### Git 工作流
+
+**分支策略**：Git Flow
+
+```
+main (发布分支) ← release/* ← develop ← feature/*, bugfix/*, hotfix/*
+```
+
+**分支命名**：
+- `feature/{功能名}` - 新功能开发
+- `bugfix/{Bug编号}` - Bug 修复
+- `hotfix/{编号}` - 紧急修复
+- `release/{版本号}` - 发布准备
+- `docs/{文档名}` - 文档更新
+
+**示例**：
+```
+feature/ai-metadata-extraction
+bugfix/ISSUE-42-image-conversion-fails
+hotfix/security-patch-update-dependency
+docs/architecture-redesign
+```
+
+### Commit 消息规范
+
+**格式**：`<type>(<scope>): <subject>`
+
+```
+type: feat | fix | docs | style | refactor | test | chore | perf
+scope: 影响的模块 (optional)
+subject: 50 字以内，命令式，首字母小写
+
+// 示例
+feat(metadata): add AI prompt extraction from PNG tEXt
+
+fix(converter): handle transparent PNG to JPEG conversion
+
+docs: update architecture document with data flow diagrams
+
+chore(deps): upgrade SixLabors.ImageSharp from 3.1.10 to 3.1.11
+```
+
+**完整 Commit 模板**：
+```
+<type>(<scope>): <subject>
+
+<body>
+
+<footer>
+
+// 例
+feat(conversion): implement read-write-verify pattern
+
+将所有图片转换操作升级为三步法：
+1. 读取源数据（图片、元数据、时间戳）
+2. 执行转换（格式转换、元数据写入、时间戳应用）
+3. 验证一致性（重读数据，确保转换无损）
+
+该模式确保数据完整性，便于事后审计。
+
+Closes #123
+```
+
+### Pull Request 规范
+
+**PR 标题**：遵循 Commit 规范  
+**PR 描述模板**：
+
+```markdown
+## 变更内容
+描述本 PR 做了什么（3-5 句话）
+
+## 关联 Issue
+Closes #123
+
+## 测试方法
+- [ ] 单元测试通过
+- [ ] 集成测试通过
+- [ ] 手动测试场景：...
+
+## 检查清单
+- [ ] 代码遵循风格指南
+- [ ] 自行 review 过代码
+- [ ] 添加了必要的注释与文档
+- [ ] 新增函数有 XML 注释
+- [ ] 无新的 warning 或 error
+- [ ] 测试覆盖率未下降
+
+## 影响范围
+- 模块：FileScanner, ImageConverter
+- 依赖变更：无
+- 破坏性变更：否
+```
+
+### Code Review 检查清单
+
+**Reviewer 必须验证**：
+
+- [ ] **需求匹配**：代码是否实现了对应需求？
+- [ ] **设计一致**：是否遵循了架构文档的设计？
+- [ ] **单一职责**：是否违反了 SRP？
+- [ ] **复杂度**：是否超过了规定的复杂度限制？
+- [ ] **异常处理**：是否正确捕获和记录异常？
+- [ ] **文档注释**：是否有完整的 XML 注释？
+- [ ] **测试覆盖**：是否有相应的单元测试？
+- [ ] **命名规范**：是否遵循了命名约定？
+- [ ] **安全风险**：是否有注入、溢出等风险？
+- [ ] **性能影响**：是否引入了性能劣化？
+- [ ] **SOLID 原则**：是否违反了任何 SOLID 原则？
+
+---
+
+## 预测报告与风险管理
+
+### 项目风险评估报告 (Risk Assessment Report)
+
+**更新周期**：每月或架构调整时
+
+#### 报告结构
+
+```markdown
+# 项目风险评估报告
+
+## 1. 项目元数据
+- 项目名：ImageInfo
+- 评估日期：2025-11-16
+- 评估人：[团队成员]
+- 复杂度指数 (CCI)：42（中等风险）
+
+## 2. 风险清单
+
+| ID | 风险类别 | 描述 | 影响 | 可能性 | 优先级 | 缓解措施 |
+|----|--------|------|------|------|------|--------|
+| R001 | 依赖漏洞 | ImageSharp 可能存在已知漏洞 | 高 | 中 | P1 | 每月运行 vulnerability check |
+| R002 | 元数据泄露 | PNG/EXIF/XMP 包含敏感信息 | 高 | 中 | P1 | 添加脱敏/过滤选项 |
+| R003 | 文件系统权限 | 无权限访问目录导致扫描失败 | 中 | 中 | P2 | 改进异常处理与日志 |
+| R004 | 内存溢出 | 大图片或大量小图片导致 OOM | 中 | 低 | P2 | 添加内存限制与流式处理 |
+| R005 | 格式转换失败 | 损坏或不支持的图片格式 | 中 | 中 | P2 | 完善 ValidateConversion |
+
+## 3. 依赖安全性分析
+
+### 当前依赖清单
+- SixLabors.ImageSharp 3.1.11：无已知高危漏洞（截至 2025-11-16）
+- SkiaSharp 2.88.8：无已知高危漏洞
+- ClosedXML 0.105.0：2 个 Low 级别 CVE，已修复
+- MetadataExtractor 2.5.0：无已知漏洞
+
+### 漏洞检查结果
+```
+dotnet list package --vulnerable
+No vulnerable packages detected (最后检查日期)
+```
+
+## 4. 代码质量指标
+
+| 指标 | 目标值 | 当前值 | 状态 |
+|-----|------|------|------|
+| 测试覆盖率 | 70% | 72% | ✅ 达标 |
+| 圈复杂度平均 | < 10 | 8.5 | ✅ 达标 |
+| 代码行数 | < 10K | 2.8K | ✅ 达标 |
+| 依赖数量 | < 10 | 5 | ✅ 达标 |
+| 文档完整度 | 100% | 95% | ⚠️ 缺少 1 个文档 |
+
+## 5. 维护性评估
+
+- 代码可读性：高（模块化设计、充分注释）
+- 学习曲线：低（架构简洁，5 个核心模块）
+- 扩展性：中（需要改进 Interface 抽象层）
+- 技术债：低（无已知技术债）
+
+## 6. 三个月预测
+
+### 可能遇到的问题
+1. **AI 元数据标准多元化**：SD WebUI / ComfyUI / Midjourney 等工具元数据格式差异
+   - 影响：extraction 函数复杂度上升
+   - 缓解：设计 Plugin 架构用于支持多种格式
+
+2. **大规模批处理**：处理 10K+ 张图片时可能遇到性能或内存问题
+   - 影响：需要优化转换流程、实现流式处理
+   - 缓解：添加性能基准测试、并行处理
+
+3. **跨平台兼容性**：Windows/Linux/macOS 文件时间戳处理差异
+   - 影响：某些平台无法设置创建时间
+   - 缓解：文档化平台限制，提供最佳实践
+
+### 建议行动项
+- [ ] 建立依赖更新计划（每月检查一次）
+- [ ] 添加性能基准测试（图片转换速度、内存峰值）
+- [ ] 创建 Roadmap（支持更多元数据格式、大规模批处理优化）
+- [ ] 定期代码审计（每季度一次）
+```
+
+### 风险分类与应对
+
+**风险类别**：
+
+1. **技术风险**
+   - 依赖漏洞、性能瓶颈、兼容性问题
+   - 应对：定期审计、性能测试、跨平台测试
+
+2. **业务风险**
+   - 需求变更、优先级调整、范围蔓延
+   - 应对：需求评审、明确范围边界、变更控制
+
+3. **运维风险**
+   - 部署问题、监控盲区、恢复困难
+   - 应对：自动化部署、详细文档、灾难恢复计划
+
+4. **人员风险**
+   - 知识集中、人力不足、技能缺陷
+   - 应对：知识共享、交叉培训、文档完善
+
+### 风险评分矩阵
+
+```
+     可能性 (Likelihood)
+     │ 低   │ 中   │ 高   │
+影响 ├─────┼─────┼─────┤
+     │ 低  │低   │低   │中  │
+     ├────┼────┼────┤
+     │ 中  │低   │中   │高  │
+     ├────┼────┼────┤
+     │ 高  │中   │高   │极高│
+     └────┴────┴────┘
+
+P1(优先级 1)：高优先级，需立即处理
+P2(优先级 2)：中优先级，下个迭代处理
+P3(优先级 3)：低优先级，可延后处理
+```
+
+---
+
+## 时间戳与日志规范
+
+### 报告生成的时间戳规范
+
+所有输出报告必须包含时间戳，以增强唯一性和可追溯性。
+
+#### 报告命名规范
+
+**格式**：`{报告名称}-{yyyyMMdd-HHmmss}.{扩展名}`
+
+**示例**：
+```
+conversion-report-20251116-143022.xlsx      // 转换报告
+conversion-log-20251116-143022.txt          // 转换日志
+export-20251116-083015.csv                  // 导出数据
+backup-20251115-220030.zip                  // 备份文件
+performance-metrics-20251116-120000.json    // 性能报告
+```
+
+#### 时间戳格式
+
+| 用途 | 格式 | 示例 | 说明 |
+|-----|------|------|------|
+| 文件名 | `yyyyMMdd-HHmmss` | `20251116-143022` | 紧凑易读，用于排序 |
+| 文件内容 | ISO 8601 | `2025-11-16T14:30:22Z` | 标准格式，便于解析 |
+| 日志行 | `yyyy-MM-dd HH:mm:ss` (UTC) | `2025-11-16 14:30:22` | 可读性强，便于人工查看 |
+| 数据库/API | ISO 8601 | `2025-11-16T14:30:22.123Z` | 包含毫秒，精度最高 |
+
+**时区规范**：
+- 所有时间戳统一使用 **UTC**（协调世界时），不使用本地时间
+- 文件名中不需明确标记 UTC，因为全球统一
+- 文件内容中可选用 `Z` 后缀（表示 UTC）或明确标注 `(UTC)`
+
+### 日志文件规范
+
+#### 日志文件位置与组织
+
+**位置**：项目输出目录下统一创建 `logs/` 子目录
+
+```
+项目根目录/
+├── outputs/
+│   ├── converted/           (转换后的图片)
+│   ├── conversion-report-20251116-143022.xlsx
+│   ├── conversion-log.txt   (追加式日志，所有转换的累积记录)
+│   └── logs/                (按日期分类的归档日志)
+│       ├── conversion-2025-11-16.log
+│       ├── conversion-2025-11-15.log
+│       └── error-2025-11-16.log
+```
+
+#### 日志格式规范
+
+**标准日志行格式**（Structured Logging）：
+
+```
+[时间戳] [日志级别] [模块] [操作ID] 消息 [异常堆栈]
+
+例：
+[2025-11-16 14:30:22] [INFO] [ConversionService] [OP-12345] 开始扫描目录: C:\\images
+[2025-11-16 14:30:23] [INFO] [ImageConverter] [OP-12345] 转换成功: input.png → output.jpg (宽=800, 高=600)
+[2025-11-16 14:30:24] [WARN] [AIMetadataExtractor] [OP-12345] 元数据字段过长，已截断: Prompt (原长=5000 字符)
+[2025-11-16 14:30:25] [ERROR] [ValidationService] [OP-12345] 转换验证失败: 目标文件宽度不匹配 (期望=800, 实际=795)
+```
+
+#### 日志级别
+
+| 级别 | 用途 | 示例 |
+|-----|------|------|
+| **DEBUG** | 开发调试信息，包含详细的状态变化 | 函数入参、中间变量值、循环次数 |
+| **INFO** | 业务进度信息，记录主要操作 | 文件开始处理、转换成功、生成报告 |
+| **WARN** | 警告信息，表示潜在问题但不影响继续执行 | 元数据截断、兼容性提示、性能建议 |
+| **ERROR** | 错误信息，表示单次操作失败但程序继续 | 转换失败、文件无法加载、权限不足 |
+| **FATAL** | 致命错误，表示程序无法继续执行 | 核心依赖加载失败、资源耗尽、无法恢复 |
+
+#### 每次运行的报告小结
+
+每次转换/处理操作完成后，日志应包含统计摘要：
+
+```
+================================================================================
+报告生成时间: 2025-11-16 14:30:30 (UTC)
+报告文件: conversion-report-20251116-143022.xlsx
+操作总数: 150
+成功数: 148
+失败数: 2
+成功率: 98.67%
+处理耗时: 45.3 秒
+平均单图处理: 0.30 秒
+
+失败详情:
+  - image_001.png: 格式不支持 (GIF animated)
+  - image_042.jpg: 文件损坏 (truncated JPEG)
+================================================================================
+```
+
+### 文件时间戳与追溯
+
+#### 元数据中的时间戳字段
+
+在所有重要操作记录中应包含时间戳字段，便于事后追踪：
+
+| 字段 | 含义 | 格式 | 用途 |
+|-----|------|------|------|
+| `CreatedAt` | 操作记录的创建时间 | ISO 8601 | 确定何时执行了该操作 |
+| `UpdatedAt` | 最后修改时间 | ISO 8601 | 追踪维护历史 |
+| `SourceModifiedUtc` | 源文件修改时间 | ISO 8601 | 源数据版本标识 |
+| `ReportTimestamp` | 报告生成时间 | ISO 8601 | 对应报告所属的"快照" |
+| `ExpiryAt` (可选) | 数据过期时间 | ISO 8601 | 用于自动清理临时数据 |
+
+#### 时间戳一致性原则
+
+- **原子性**：单个操作的所有时间戳应在 1 秒内完成，否则应统一使用操作开始时间
+- **连续性**：同一报告中的所有行使用相同的 `ReportTimestamp`，以表示这是一个"快照"
+- **精度**：文件系统时间精度通常为 1 秒，不追求毫秒级别（除非系统明确支持）
+
+### 时效性数据的清理规范
+
+对于有明显时效性的文件（临时报告、日志、缓存），应实施自动清理：
+
+```csharp
+/// <summary>
+/// 清理超过指定天数的过期报告和日志文件。
+/// </summary>
+public static void CleanupOldReports(string outputDir, int retentionDays = 30)
+{
+    var cutoffDate = DateTime.UtcNow.AddDays(-retentionDays);
+    var files = Directory.GetFiles(outputDir, "*-????????-??????.*");
+    
+    foreach (var file in files)
+    {
+        // 从文件名提取时间戳
+        if (TryExtractTimestamp(file, out var timestamp) && timestamp < cutoffDate)
+        {
+            File.Delete(file);
+            Console.WriteLine($"Deleted old report: {file}");
+        }
+    }
+}
+```
+
+**清理规范**：
+- 开发/测试环境：保留 7 天
+- 生产环境：保留 30-90 天（根据法规要求）
+- 敏感数据：保留期限应遵循隐私政策
+- 定期清理：每周运行一次（如在 CI/CD 中实现）
+
+### 项目纲领中的示例
+
+**本项目的时间戳实装**：
+
+项目 `ImageInfo` 已实现以下规范：
+- ✅ 报告文件名：`conversion-report-{yyyyMMdd-HHmmss}.xlsx`
+- ✅ 日志文件：`conversion-log.txt`（追加式，每行包含时间戳）
+- ✅ 每行转换记录附加 `ReportTimestamp` 字段（ISO 8601）
+- ✅ 日志摘要：包含统计数据和失败原因分析
+- ✅ 单元格截断：长度超过 1000 字符的字段自动截断并标注省略号，避免 XLSX 单元格超限错误
+
+#### 文件时间戳设置的平台限制
+
+**修改时间（LastWriteTimeUtc）**：
+- ✅ Windows：完全支持
+- ✅ Linux：完全支持
+- ✅ macOS：完全支持
+
+**创建时间（CreationTimeUtc）**：
+- ⚠️ Windows：需要 P/Invoke，当前未实现
+- ❌ Linux：文件系统不支持（ext4、XFS 等无创建时间概念）
+- ❌ macOS：文件系统不支持（HFS+ 的"创建日期"与修改时间通常相同）
+
+**建议**：
+- 生产环境若需跨平台保证，仅依赖 `LastWriteTimeUtc`
+- 若需 Windows 创建时间，通过 P/Invoke 扩展 `TrySetCreationTime()` 方法
+- 验证时允许 ±2 秒容差，应对操作系统延迟
+
+---
+
+## 发布与维护流程
+
+### 版本管理
+
+**版本格式**：Semantic Versioning (SemVer)  
+`MAJOR.MINOR.PATCH` (如 `1.2.3`)
+
+- **MAJOR**：不兼容 API 更改
+- **MINOR**：向后兼容的新功能
+- **PATCH**：向后兼容的 Bug 修复
+
+**示例**：
+- `1.0.0` - 首个发布版本
+- `1.1.0` - 新增 AI 元数据提取功能
+- `1.1.1` - 修复 WebP 转换 Bug
+- `2.0.0` - 重构架构，不兼容 1.x
+
+### 发布检查清单
+
+**发布前（Pre-Release）**：
+
+- [ ] 所有测试通过（`dotnet test`）
+- [ ] 代码审查完成
+- [ ] CHANGELOG 更新
+- [ ] 版本号更新（csproj + 标签）
+- [ ] 文档更新（README、API 文档）
+- [ ] 依赖审计（`dotnet list package --vulnerable`）
+- [ ] 性能测试通过
+- [ ] 安全审查通过
+
+**发布流程**：
+
+```bash
+# 1. 创建 release 分支
+git checkout -b release/v1.1.0 develop
+
+# 2. 更新版本号
+# 编辑 src/ImageInfo/ImageInfo.csproj: <Version>1.1.0</Version>
+
+# 3. 提交变更
+git commit -m "chore: bump version to 1.1.0"
+
+# 4. 创建 Pull Request（release → main）
+git push origin release/v1.1.0
+
+# 5. Code Review & Merge
+# ... GitHub Actions 自动测试 ...
+
+# 6. 打标签
+git tag -a v1.1.0 -m "Release version 1.1.0"
+git push origin v1.1.0
+
+# 7. 发布 NuGet 包（如适用）
+# dotnet pack ...
+
+# 8. 创建 Release Notes
+# GitHub Releases → 从 CHANGELOG 生成
+```
+
+### 维护周期
+
+| 活动 | 频率 | 责任人 |
+|-----|------|------|
+| 依赖检查 | 每月 | DevOps / Lead |
+| 代码审计 | 每季度 | 架构师 |
+| 性能测试 | 每半年 | Performance 团队 |
+| 安全审计 | 每年 | 安全团队 |
+| 文档更新 | 实时 | 开发者 |
+
+---
+
+## 检查清单
+
+### 项目启动检查清单
+
+- [ ] 需求文档完成（RDD / User Stories）
+- [ ] 架构文档草稿就绪（ADD）
+- [ ] 技术栈选型完成（依赖评分 ≥ 80）
+- [ ] 开发环境配置指南编写
+- [ ] 初始 Git 仓库与分支策略建立
+- [ ] CI/CD 管道配置（如适用）
+- [ ] 成员权限与沟通渠道确认
+
+### 代码提交检查清单
+
+提交代码前，必须检查：
+
+- [ ] 代码本地编译通过（`dotnet build`）
+- [ ] 所有测试通过（`dotnet test`）
+- [ ] 代码风格符合规范（命名、复杂度、缩进）
+- [ ] 添加了 XML 文档注释（公开 API）
+- [ ] 异常处理完善（无裸 try-catch）
+- [ ] 新增的第三方依赖经过评分（≥ 80）
+- [ ] 相关文档已更新
+- [ ] Commit 消息遵循格式规范
+- [ ] 无调试代码或注释代码残留
+- [ ] 无安全风险（如硬编码密钥、SQL 注入）
+
+### 代码审查检查清单
+
+Reviewer 必须验证：
+
+- [ ] 功能实现是否完整且正确
+- [ ] 代码是否易于理解和维护
+- [ ] 是否遵循设计文档和编码规范
+- [ ] 测试覆盖是否充分
+- [ ] 是否有明显的性能问题
+- [ ] 是否引入了新的依赖（是否通过评分）
+- [ ] 文档是否完整更新
+- [ ] 是否存在安全隐患
+
+### 每周检查清单
+
+- [ ] 依赖漏洞扫描（`dotnet list package --vulnerable`）
+- [ ] 测试覆盖率报告（应保持 ≥ 70%）
+- [ ] 代码复杂度分析（是否有函数超过 CC=10）
+- [ ] 技术债积压（是否有待解决的问题）
+- [ ] 文档是否同步
+
+### 每月检查清单
+
+- [ ] 性能基准测试（内存、CPU、转换速度）
+- [ ] 依赖更新检查（是否有新版本可用）
+- [ ] 跨平台兼容性测试（Windows / Linux / macOS）
+- [ ] 文档完整性审查
+- [ ] 技术债评估与优先级排序
+
+---
+
+## 附录：参考资源
+
+### 编程最佳实践
+
+- **Clean Code** - Robert C. Martin
+- **Code Complete** - Steve McConnell
+- **Refactoring** - Martin Fowler
+- **Design Patterns** - Gang of Four
+
+### .NET 相关
+
+- [Microsoft Docs: C# Coding Conventions](https://docs.microsoft.com/dotnet/csharp/fundamentals/coding-style/coding-conventions)
+- [Roslyn Analyzers](https://github.com/dotnet/roslyn-analyzers)
+- [StyleCop.Analyzers](https://github.com/DotNetAnalyzers/StyleCopAnalyzers)
+
+### 版本控制与协作
+
+- [Semantic Versioning](https://semver.org/)
+- [Conventional Commits](https://www.conventionalcommits.org/)
+- [Git Flow](https://nvie.com/posts/a-successful-git-branching-model/)
+
+### 安全与合规
+
+- [OWASP Top 10](https://owasp.org/www-project-top-ten/)
+- [CWE Top 25](https://cwe.mitre.org/top25/)
+- [NuGet Security Best Practices](https://docs.microsoft.com/nuget/concepts/security-best-practices)
+
+---
+
+**文档版本**：v1.2 | **最后更新**：2025-11-16 15:00 (UTC) | **维护者**：开发团队
+
+**v1.2 变更日志**：
+- 🔄 重构：拆分 AIMetadataExtractor 为三个专化服务（PngMetadataExtractor、JpegMetadataExtractor、WebPMetadataExtractor）
+- ✨ 改进：每个格式现在有独立的实现，避免相互干扰
+- ✨ 改进：JPEG 和 WebP 的元数据读取现在返回正确值而非空值
+- 📚 新增：ConversionService 添加格式路由方法（ExtractAIMetadata、WriteAIMetadata、VerifyAIMetadata）
+- 🐛 修复：JPG/WebP 元数据读取返回空值的问题
+
+**v1.1 变更日志**：
+- ✨ 新增：时间戳与日志规范章节（第 11 节）
+- ✨ 新增：报告命名、时间戳格式、日志级别规范
+- ✨ 新增：文件时间戳设置的平台兼容性说明
+- 🐛 修复：XLSX 单元格超大文本处理（自动截断>1000字符）
+- 📚 改进：FileTimeService 添加详细的平台限制文档
+- ✅ 更新：ReportService 添加时间戳文件名和日志记录功能
+
+*本文档为团队共识，如有改进建议，请通过 Issue 或 Discussion 提出。*

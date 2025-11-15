@@ -63,10 +63,15 @@ namespace ImageInfo.Tests
             var outXlsx = Path.Combine(_tempDir, "report.xlsx");
             ReportService.WriteConversionReport(rows, outXlsx);
 
-            Assert.True(File.Exists(outXlsx));
+            // 文件名现在包含时间戳后缀，例如 report-20251116-143022.xlsx
+            var reportFiles = Directory.GetFiles(_tempDir, "report-*.xlsx");
+            Assert.NotEmpty(reportFiles);
+            var actualXlsx = reportFiles[0];
+
+            Assert.True(File.Exists(actualXlsx));
 
             // Basic content check using ClosedXML
-            using var wb = new XLWorkbook(outXlsx);
+            using var wb = new XLWorkbook(actualXlsx);
             var ws = wb.Worksheet("Conversions");
             Assert.NotNull(ws);
             var used = ws.RangeUsed();
