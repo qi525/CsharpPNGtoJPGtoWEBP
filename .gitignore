@@ -1,0 +1,36 @@
+# Build Folders
+bin/
+obj/
+
+# VS and Rider
+.vs/
+.idea/
+
+# User-specific files
+*.user
+*.suo
+*.userosscache
+*.userprefs
+
+# Visual Studio cache/options
+.vscode/
+
+# NuGet
+packages/
+*.nupkg
+
+# Logs
+*.log
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Temporary
+*.tmp
+
+# Test results
+TestResults/
+
+# dotnet publish
+publish/
