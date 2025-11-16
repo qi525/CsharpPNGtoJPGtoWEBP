@@ -1,5 +1,9 @@
 using System;
 using System.IO;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.Formats.Jpeg;
 using SixLabors.ImageSharp.Processing;
@@ -7,19 +11,17 @@ using SkiaSharp;
 
 namespace ImageInfo.Services
 {
-    /*
-     File: ImageConverter.cs
-     Purpose: 提供图片格式转换功能（PNG <-> JPEG, PNG/JPEG -> WebP）。
-     Implementation notes:
-      - 使用 SixLabors.ImageSharp 做 PNG->JPEG（可处理透明背景）。
-      - 使用 SkiaSharp 做 WebP 编码以避免对 Magick.NET 的依赖。
-    */
 
     /// <summary>
     /// 图片格式转换工具，支持 PNG/JPEG/WebP 互转。
+    /// 包含单文件转换和批量异步转换功能。
     /// </summary>
     public static class ImageConverter
     {
+        /// <summary>
+        /// 单个文件转换时的默认超时时间（毫秒）。
+        /// </summary>
+        private const int DefaultTimeout = 30000;
         /// <summary>
         /// 将 PNG 图片转换为 JPEG 格式，自动处理透明背景为白色。
         /// 返回输出文件路径（默认替换扩展名为 .jpg）。
@@ -79,5 +81,23 @@ namespace ImageInfo.Services
             data.SaveTo(outFile);
             return outPath;
         }
+
+        /// <summary>
+        /// 将 WebP 图片转换为 JPEG 格式（使用 SkiaSharp 解码并编码为 JPEG）。
+        /// 返回输出文件路径（默认同名 .jpg）。
+        /// </summary>
+        public static string ConvertWebPToJpeg(string webpPath, string? outPath = null, int quality = 85)
+        {
+            if (string.IsNullOrWhiteSpace(outPath))
+                outPath = Path.ChangeExtension(webpPath, ".jpg");
+
+            using var inputBitmap = SKBitmap.Decode(webpPath);
+            using var data = inputBitmap.Encode(SKEncodedImageFormat.Jpeg, quality);
+            using var outFile = File.Create(outPath);
+            data.SaveTo(outFile);
+            return outPath;
+        }
+
+
     }
 }

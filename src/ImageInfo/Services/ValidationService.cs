@@ -74,5 +74,71 @@ namespace ImageInfo.Services
                 return false;
             }
         }
+
+        /// <summary>
+        /// 验证输出文件夹的层级结构是否与源文件夹的相对层级一致。
+        /// 用于检查转换后的文件是否被正确地组织到了预期的目录结构中。
+        /// 
+        /// 示例：
+        ///   源文件: C:\\test\\二层\\三层\\photo.png
+        ///   源根目录: C:\\test
+        ///   输出文件: C:\\PNG转JPG\\test\\二层\\三层\\photo.jpg
+        ///   此函数验证输出文件相对于 "C:\\PNG转JPG\\test" 的路径是否为 "二层\\三层"
+        /// </summary>
+        /// <param name="sourceFilePath">源文件的完整路径</param>
+        /// <param name="sourceRootFolder">源根目录路径（从此目录开始计算相对路径）</param>
+        /// <param name="destFilePath">输出文件的完整路径</param>
+        /// <param name="destRootFolder">输出根目录路径（从此目录开始计算相对路径）</param>
+        /// <returns>如果相对层级结构匹配返回 true，否则返回 false</returns>
+        public static bool VerifyOutputDirectoryStructure(string sourceFilePath, string sourceRootFolder, 
+            string destFilePath, string destRootFolder)
+        {
+            try
+            {
+                // 标准化路径
+                var srcAbsPath = Path.GetFullPath(sourceFilePath);
+                var srcRootAbsPath = Path.GetFullPath(sourceRootFolder);
+                var dstAbsPath = Path.GetFullPath(destFilePath);
+                var dstRootAbsPath = Path.GetFullPath(destRootFolder);
+
+                // 计算源文件相对于源根目录的相对路径（不含文件名，仅目录部分）
+                var srcRelativeDir = GetRelativeDirectoryPath(srcRootAbsPath, srcAbsPath);
+                
+                // 计算输出文件相对于输出根目录的相对路径（不含文件名，仅目录部分）
+                var dstRelativeDir = GetRelativeDirectoryPath(dstRootAbsPath, dstAbsPath);
+
+                // 比较相对目录部分是否一致
+                return string.Equals(srcRelativeDir, dstRelativeDir, StringComparison.OrdinalIgnoreCase);
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// 计算文件相对于根目录的相对目录路径（不含文件名）。
+        /// </summary>
+        /// <param name="rootPath">根目录路径</param>
+        /// <param name="filePath">文件完整路径</param>
+        /// <returns>相对目录路径，如果文件不在根目录下则返回空字符串</returns>
+        private static string GetRelativeDirectoryPath(string rootPath, string filePath)
+        {
+            var rootAbs = Path.GetFullPath(rootPath);
+            var fileAbs = Path.GetFullPath(filePath);
+            var fileDir = Path.GetDirectoryName(fileAbs) ?? string.Empty;
+
+            // 检查文件目录是否在根目录下
+            if (!fileDir.StartsWith(rootAbs, StringComparison.OrdinalIgnoreCase))
+                return string.Empty;
+
+            // 如果文件直接在根目录下，返回空字符串
+            if (string.Equals(fileDir, rootAbs, StringComparison.OrdinalIgnoreCase))
+                return string.Empty;
+
+            // 计算相对路径
+            var relativeDir = fileDir.Substring(rootAbs.Length).TrimStart(Path.DirectorySeparatorChar);
+            return relativeDir;
+        }
     }
 }

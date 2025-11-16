@@ -17,10 +17,10 @@ namespace ImageInfo.Services
         /// </summary>
         /// <param name="sourceFolder">源文件夹路径</param>
         /// <param name="openReport">是否在生成后打开报告（默认 false）</param>
-        public static void ScanConvertAndReport(string sourceFolder, bool openReport = false)
+        public static void ScanConvertAndReport(string sourceFolder, int choice = 1, OutputDirectoryMode mode = OutputDirectoryMode.SiblingDirectoryWithStructure, bool openReport = false)
         {
             var files = FileScanner.GetImageFiles(sourceFolder);
-            var rows = GenerateConversionRows(sourceFolder, files);
+            var rows = GenerateConversionRows(sourceFolder, files, choice, mode);
 
             if (rows.Count > 0)
             {
@@ -38,12 +38,11 @@ namespace ImageInfo.Services
         /// <summary>
         /// 生成转换报告行集合，包含所有转换操作及结果。
         /// </summary>
-        private static List<ConversionReportRow> GenerateConversionRows(string sourceFolder, IEnumerable<string> files)
+        private static List<ConversionReportRow> GenerateConversionRows(string sourceFolder, IEnumerable<string> files, int choice, OutputDirectoryMode mode)
         {
             var rows = new List<ConversionReportRow>();
-            var reportDir = Path.Combine(sourceFolder, "converted");
-            if (!Directory.Exists(reportDir))
-                Directory.CreateDirectory(reportDir);
+            // 使用外部输出目录（兄弟目录）并保留源文件夹层级。
+            var rootFolder = sourceFolder;
 
             foreach (var srcPath in files)
             {
@@ -58,14 +57,24 @@ namespace ImageInfo.Services
                     // 使用 MetadataExtractorFactory 统一提取所有格式的元数据
                     var aiMetadata = MetadataExtractorFactory.GetImageInfo(srcPath);
 
-                    if (srcFormat == "PNG")
+                    // 映射：1 = PNG -> JPG, 2 = PNG -> WEBP, 3 = JPG -> WEBP
+                    if (choice == 1)
                     {
-                        AddConversionRow(rows, srcPath, srcImg, reportDir, "JPG", 85, createdUtc, modifiedUtc, aiMetadata);
-                        AddConversionRow(rows, srcPath, srcImg, reportDir, "WEBP", 80, createdUtc, modifiedUtc, aiMetadata);
+                        // PNG -> JPG
+                        if (srcFormat == "PNG")
+                            AddConversionRow(rows, srcPath, srcImg, rootFolder, mode, "JPG", 85, createdUtc, modifiedUtc, aiMetadata);
                     }
-                    else if (srcFormat == "JPG" || srcFormat == "JPEG")
+                    else if (choice == 2)
                     {
-                        AddConversionRow(rows, srcPath, srcImg, reportDir, "WEBP", 80, createdUtc, modifiedUtc, aiMetadata);
+                        // PNG -> WEBP
+                        if (srcFormat == "PNG")
+                            AddConversionRow(rows, srcPath, srcImg, rootFolder, mode, "WEBP", 80, createdUtc, modifiedUtc, aiMetadata);
+                    }
+                    else if (choice == 3)
+                    {
+                        // JPG -> WEBP
+                        if (srcFormat == "JPG" || srcFormat == "JPEG")
+                            AddConversionRow(rows, srcPath, srcImg, rootFolder, mode, "WEBP", 80, createdUtc, modifiedUtc, aiMetadata);
                     }
                 }
                 catch (Exception ex)
@@ -87,12 +96,20 @@ namespace ImageInfo.Services
         /// 3. 【验证】结果校验、时间戳验证、元数据验证、创建时间验证
         /// 4. 【恢复】失败时备份源文件，成功时设置创建时间（Windows P/Invoke）
         /// </summary>
-        private static void AddConversionRow(List<ConversionReportRow> rows, string srcPath, Image srcImg, 
-            string reportDir, string destFormat, int quality, DateTime createdUtc, DateTime modifiedUtc, AIMetadata aiMetadata)
+        private static void AddConversionRow(List<ConversionReportRow> rows, string srcPath, Image srcImg,
+            string rootFolder, OutputDirectoryMode mode, string destFormat, int quality, DateTime createdUtc, DateTime modifiedUtc, AIMetadata aiMetadata)
         {
             var srcFormat = Path.GetExtension(srcPath).TrimStart('.').ToUpperInvariant();
             var destExt = destFormat.ToLower();
-            var destPath = Path.Combine(reportDir, Path.GetFileNameWithoutExtension(srcPath) + "." + destExt);
+            // 输出前缀示例：PNG转JPG、PNG转WEBP、JPG转WEBP
+            var outputDirPrefix = $"{srcFormat}转{destFormat}";
+
+            // 计算输出目录（兄弟目录或本地子目录），并确保目录存在
+            var outputDir = GetOutputDirectory(srcPath, outputDirPrefix, rootFolder, mode);
+            if (!Directory.Exists(outputDir))
+                Directory.CreateDirectory(outputDir);
+
+            var destPath = Path.Combine(outputDir, Path.GetFileNameWithoutExtension(srcPath) + "." + destExt);
 
             try
             {
@@ -148,8 +165,8 @@ namespace ImageInfo.Services
             }
             catch (Exception ex)
             {
-                // 转换失败时，将源文件备份到目标目录
-                var backupFilePath = FileBackupService.CreateBackupFile(srcPath, reportDir);
+                // 转换失败时，将源文件备份到目标目录（备份到计算出的 outputDir）
+                var backupFilePath = FileBackupService.CreateBackupFile(srcPath, outputDir);
                 var backupVerified = backupFilePath != null && FileBackupService.VerifyBackupFile(srcPath, backupFilePath);
                 
                 Console.WriteLine($"Conversion failed for {Path.GetFileName(srcPath)}: {ex.Message}");
