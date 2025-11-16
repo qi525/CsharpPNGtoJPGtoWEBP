@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using ImageInfo.Models;
 using SixLabors.ImageSharp;
+using System.Linq;
 
 namespace ImageInfo.Services
 {
@@ -54,8 +55,8 @@ namespace ImageInfo.Services
                     // 读取源文件的时间戳
                     var (createdUtc, modifiedUtc) = FileTimeService.ReadFileTimes(srcPath);
                     
-                    // 根据格式使用相应的元数据提取器
-                    var aiMetadata = ExtractAIMetadata(srcPath, srcFormat);
+                    // 使用 MetadataExtractorFactory 统一提取所有格式的元数据
+                    var aiMetadata = MetadataExtractorFactory.GetImageInfo(srcPath);
 
                     if (srcFormat == "PNG")
                     {
@@ -79,6 +80,12 @@ namespace ImageInfo.Services
         /// <summary>
         /// 添加一行转换记录到列表中。
         /// 实现读→写→验证的完整流程。
+        /// 
+        /// 工作流：
+        /// 1. 【读】源文件加载、元数据读取
+        /// 2. 【写】格式转换、时间戳同步、元数据写入
+        /// 3. 【验证】结果校验、时间戳验证、元数据验证、创建时间验证
+        /// 4. 【恢复】失败时备份源文件，成功时设置创建时间（Windows P/Invoke）
         /// </summary>
         private static void AddConversionRow(List<ConversionReportRow> rows, string srcPath, Image srcImg, 
             string reportDir, string destFormat, int quality, DateTime createdUtc, DateTime modifiedUtc, AIMetadata aiMetadata)
@@ -104,11 +111,15 @@ namespace ImageInfo.Services
 
                 // 复刻文件时间
                 FileTimeService.WriteFileTimes(destPath, createdUtc, modifiedUtc);
+                
+                // 使用 CreationTimeService 设置创建时间（Windows P/Invoke）
+                CreationTimeService.SetCreationTime(destPath, createdUtc);
 
                 // 【验证】读取并验证结果
                 using var destImg = Image.Load(destPath);
                 var isValidConversion = ValidationService.ValidateConversion(srcPath, destPath);
                 var isTimeValid = FileTimeService.VerifyFileTimes(destPath, modifiedUtc);
+                var isCreationTimeValid = CreationTimeService.VerifyCreationTime(destPath, createdUtc);
                 var isMetadataValid = VerifyAIMetadata(destPath, destFormat, aiMetadata);
 
                 rows.Add(new ConversionReportRow
@@ -123,7 +134,7 @@ namespace ImageInfo.Services
                     DestHeight = destImg.Height,
                     DestFormat = destFormat,
                     DestParams = $"Quality:{quality}",
-                    Success = isValidConversion && isTimeValid && isMetadataValid,
+                    Success = isValidConversion && isTimeValid && isCreationTimeValid && isMetadataValid,
                     ErrorMessage = null,
                     AIPrompt = aiMetadata?.Prompt,
                     AINegativePrompt = aiMetadata?.NegativePrompt,
@@ -137,6 +148,16 @@ namespace ImageInfo.Services
             }
             catch (Exception ex)
             {
+                // 转换失败时，将源文件备份到目标目录
+                var backupFilePath = FileBackupService.CreateBackupFile(srcPath, reportDir);
+                var backupVerified = backupFilePath != null && FileBackupService.VerifyBackupFile(srcPath, backupFilePath);
+                
+                Console.WriteLine($"Conversion failed for {Path.GetFileName(srcPath)}: {ex.Message}");
+                if (backupVerified)
+                {
+                    Console.WriteLine($"Source file backed up: {backupFilePath}");
+                }
+
                 rows.Add(new ConversionReportRow
                 {
                     SourcePath = Path.GetFullPath(srcPath),
@@ -150,7 +171,7 @@ namespace ImageInfo.Services
                     DestFormat = destFormat,
                     DestParams = $"Quality:{quality}",
                     Success = false,
-                    ErrorMessage = ex.Message,
+                    ErrorMessage = backupVerified ? $"{ex.Message} (source backed up)" : ex.Message,
                     AIPrompt = aiMetadata?.Prompt,
                     AINegativePrompt = aiMetadata?.NegativePrompt,
                     AIModel = aiMetadata?.Model,
@@ -164,17 +185,99 @@ namespace ImageInfo.Services
         }
 
         /// <summary>
-        /// 根据格式选择相应的元数据提取器。
+        /// 根据输出目录模式和源文件路径，计算实际输出目录。
+        /// 
+        /// 模式 1 (SiblingDirectoryWithStructure):
+        ///   源: D:/Pictures/folder/subfolder/photo.png
+        ///   根: D:/Pictures
+        ///   输出前缀: PNG转JPG
+        ///   结果: D:/PNG转JPG/folder/subfolder/
+        /// 
+        /// 模式 2 (LocalSubdirectory):
+        ///   源: D:/Pictures/folder/subfolder/photo.png
+        ///   输出前缀: PNG转JPG
+        ///   结果: D:/Pictures/folder/subfolder/PNG转JPG/
         /// </summary>
+        private static string GetOutputDirectory(string sourceFilePath, string outputDirPrefix, 
+            string? rootFolder, OutputDirectoryMode mode)
+        {
+            var sourceFileDir = Path.GetDirectoryName(sourceFilePath) ?? string.Empty;
+
+            return mode switch
+            {
+                OutputDirectoryMode.SiblingDirectoryWithStructure =>
+                    GetSiblingDirectoryPath(sourceFilePath, outputDirPrefix, rootFolder),
+                
+                OutputDirectoryMode.LocalSubdirectory =>
+                    Path.Combine(sourceFileDir, outputDirPrefix),
+                
+                _ => Path.Combine(sourceFileDir, outputDirPrefix)
+            };
+        }
+
+        /// <summary>
+        /// 计算兄弟目录 + 复刻结构的输出路径。
+        /// 
+        /// 工作流：
+        /// 1. 获取根文件夹的父目录
+        /// 2. 在父目录下创建输出前缀目录
+        /// 3. 在该目录下复刻源目录结构
+        /// </summary>
+        private static string GetSiblingDirectoryPath(string sourceFilePath, string outputDirPrefix, string? rootFolder)
+        {
+            if (string.IsNullOrEmpty(rootFolder))
+            {
+                // 如果没有提供根目录，回退到本地模式
+                var sourceDir = Path.GetDirectoryName(sourceFilePath) ?? string.Empty;
+                return Path.Combine(sourceDir, outputDirPrefix);
+            }
+
+            var rootFolderAbs = Path.GetFullPath(rootFolder);
+            var sourceFileAbs = Path.GetFullPath(sourceFilePath);
+            
+            // 计算源文件相对于根目录的相对路径
+            var relativePath = GetRelativePath(rootFolderAbs, sourceFileAbs);
+            var relativeDir = Path.GetDirectoryName(relativePath) ?? string.Empty;
+
+            // 获取根文件夹名称
+            var rootFolderName = new DirectoryInfo(rootFolderAbs).Name;
+
+            // 在父目录中创建输出前缀目录
+            var parentOfRoot = Directory.GetParent(rootFolderAbs)?.FullName ?? string.Empty;
+            var outputBase = Path.Combine(parentOfRoot, outputDirPrefix);
+            
+            // 复刻完整结构：outputBase/根目录名/相对目录
+            return Path.Combine(outputBase, rootFolderName, relativeDir);
+        }
+
+        /// <summary>
+        /// 计算相对路径（.NET Standard 兼容版本）。
+        /// </summary>
+        private static string GetRelativePath(string basePath, string fullPath)
+        {
+            basePath = Path.GetFullPath(basePath);
+            fullPath = Path.GetFullPath(fullPath);
+
+            if (!fullPath.StartsWith(basePath, StringComparison.OrdinalIgnoreCase))
+                return fullPath;
+
+            var relativePath = fullPath.Substring(basePath.Length).TrimStart(Path.DirectorySeparatorChar);
+            return relativePath;
+        }
+
+        /// <summary>
+        /// 根据格式选择相应的元数据提取器。
+        /// 
+        /// 【优化说明】
+        /// 此方法已被 MetadataExtractorFactory.GetImageInfo() 替代。
+        /// 新方法集中了类型判断和分派逻辑，更符合 Factory Pattern。
+        /// 保留此方法用于向后兼容。
+        /// </summary>
+        [Obsolete("Use MetadataExtractorFactory.GetImageInfo() instead", false)]
         private static AIMetadata ExtractAIMetadata(string imagePath, string format)
         {
-            return format switch
-            {
-                "PNG" => PngMetadataExtractor.ReadAIMetadata(imagePath),
-                "JPG" or "JPEG" => JpegMetadataExtractor.ReadAIMetadata(imagePath),
-                "WEBP" => WebPMetadataExtractor.ReadAIMetadata(imagePath),
-                _ => new AIMetadata()
-            };
+            // 回退到工厂方法
+            return MetadataExtractorFactory.GetImageInfo(imagePath);
         }
 
         /// <summary>
