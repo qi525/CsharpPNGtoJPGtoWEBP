@@ -50,6 +50,14 @@ namespace ImageInfo.Models
         public string? AISampler { get; set; }
         /// <summary>其他 AI 相关信息（步数、guidance scale 等）。</summary>
         public string? AIMetadata { get; set; }
+        /// <summary>原始完整 AI 元数据块（例如 PNG parameters / EXIF ImageDescription）。</summary>
+        public string? FullAIMetadata { get; set; }
+        /// <summary>完整元数据提取方法（MetadataExtractor / RawBytes.Fallback / ImageSharp.PngTextData / 等）。</summary>
+        public string? FullAIMetadataExtractionMethod { get; set; }
+        /// <summary>是否成功写入元数据到输出文件。</summary>
+        public bool MetadataWritten { get; set; }
+        /// <summary>写入后是否通过验证（读回比对）。</summary>
+        public bool MetadataVerified { get; set; }
 
         /// <summary>源文件创建时间（UTC）。</summary>
         public DateTime? SourceCreatedUtc { get; set; }

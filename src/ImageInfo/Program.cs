@@ -31,16 +31,24 @@ class Program
             Console.WriteLine("[开发模式] 将自动批量运行所有三种转换模式...");
             var mode = OutputDirectoryMode.SiblingDirectoryWithStructure;
 
+            LogAnalyzer.DiagnosisReport? lastDiagnosis = null;
+
             Console.WriteLine("\n=== 模式 1: PNG -> JPG ===");
-            ConversionService.ScanConvertAndReport(folder, 1, mode, openReport: false);
+            lastDiagnosis = ConversionService.ScanConvertAndReport(folder, 1, mode, openReport: false);
 
             Console.WriteLine("\n=== 模式 2: PNG -> WEBP ===");
-            ConversionService.ScanConvertAndReport(folder, 2, mode, openReport: false);
+            lastDiagnosis = ConversionService.ScanConvertAndReport(folder, 2, mode, openReport: false);
 
             Console.WriteLine("\n=== 模式 3: JPG -> WEBP ===");
-            ConversionService.ScanConvertAndReport(folder, 3, mode, openReport: false);
+            lastDiagnosis = ConversionService.ScanConvertAndReport(folder, 3, mode, openReport: false);
 
             Console.WriteLine("\n[开发模式完成] 所有三种转换已执行。");
+            
+            // 展示最后的诊断报告
+            if (lastDiagnosis != null)
+            {
+                LogAnalyzer.PrintDiagnosisToConsole(lastDiagnosis);
+            }
         }
         else
         {
@@ -70,7 +78,13 @@ class Program
 
             Console.WriteLine($"开始转换（目标格式: {(choice==1?"JPG":"WEBP")}, 输出模式: {mode}）\n");
 
-            ConversionService.ScanConvertAndReport(folder, choice, mode, openReport: true);
+            var diagnosis = ConversionService.ScanConvertAndReport(folder, choice, mode, openReport: true);
+            
+            // 展示诊断报告
+            if (diagnosis != null)
+            {
+                LogAnalyzer.PrintDiagnosisToConsole(diagnosis);
+            }
         }
 
         Console.WriteLine("按回车键退出...");

@@ -34,13 +34,14 @@ namespace ImageInfo.Services
             using var wb = new XLWorkbook();
             var ws = wb.Worksheets.Add("Conversions");
 
-            // Header (Chinese) - 添加报告时间戳列
+            // Header (Chinese) - 添加报告时间戳列、AI元数据完整信息、元数据写入状态
             var headers = new[] {
                 "源文件路径", "目标文件路径",
                 "源宽度", "源高度", "源格式", "源参数",
                 "目标宽度", "目标高度", "目标格式", "目标参数",
                 "转换成功", "错误信息",
                 "AI Prompt", "AI 负 Prompt", "AI 模型", "AI 种子", "AI 采样器", "AI 其他信息",
+                "完整AI元数据", "元数据提取方法", "元数据已写入", "元数据已验证",
                 "源创建时间", "源修改时间", "报告时间戳"
             };
 
@@ -69,9 +70,13 @@ namespace ImageInfo.Services
                 ws.Cell(r, 16).Value = TruncateIfNeeded(row.AISeed, 100);
                 ws.Cell(r, 17).Value = TruncateIfNeeded(row.AISampler, 100);
                 ws.Cell(r, 18).Value = TruncateIfNeeded(row.AIMetadata, 1000);
-                ws.Cell(r, 19).Value = row.SourceCreatedUtc?.ToString("u");
-                ws.Cell(r, 20).Value = row.SourceModifiedUtc?.ToString("u");
-                ws.Cell(r, 21).Value = reportTimestamp;
+                ws.Cell(r, 19).Value = TruncateIfNeeded(row.FullAIMetadata, 1000);
+                ws.Cell(r, 20).Value = TruncateIfNeeded(row.FullAIMetadataExtractionMethod, 100);
+                ws.Cell(r, 21).Value = row.MetadataWritten;
+                ws.Cell(r, 22).Value = row.MetadataVerified;
+                ws.Cell(r, 23).Value = row.SourceCreatedUtc?.ToString("u");
+                ws.Cell(r, 24).Value = row.SourceModifiedUtc?.ToString("u");
+                ws.Cell(r, 25).Value = reportTimestamp;
                 r++;
             }
 
@@ -135,30 +140,21 @@ namespace ImageInfo.Services
 
         /// <summary>
         /// 将报告生成信息记录到日志文件。
-        /// 日志文件位置：{reportDir}/conversion-log.txt
-        /// 记录内容：生成时间、转换总数、成功/失败数、成功率等统计信息。
+        /// 日志文件位置：{reportDir}/conversion.log
+        /// 记录内容：简洁统计（总数、成功/失败数、成功率）。
         /// </summary>
         private static void LogReportGeneration(string reportPath, IEnumerable<ConversionReportRow> rows)
         {
             try
             {
                 var reportDir = Path.GetDirectoryName(reportPath) ?? string.Empty;
-                var logFile = Path.Combine(reportDir, "conversion-log.txt");
+                var logFile = Path.Combine(reportDir, "conversion.log");
 
                 var rowList = rows is List<ConversionReportRow> list ? list : new List<ConversionReportRow>(rows);
                 var successCount = rowList.Count(r => r.Success);
                 var failureCount = rowList.Count(r => !r.Success);
 
-                var logEntry = $@"
-================================================================================
-报告生成时间: {DateTime.UtcNow:yyyy-MM-dd HH:mm:ss} (UTC)
-报告文件: {Path.GetFileName(reportPath)}
-总转换数: {rowList.Count}
-成功数: {successCount}
-失败数: {failureCount}
-成功率: {(rowList.Count > 0 ? (double)successCount / rowList.Count * 100 : 0):F2}%
-================================================================================
-";
+                var logEntry = $"[{DateTime.UtcNow:yyyy-MM-dd HH:mm:ss}] Total: {rowList.Count} | Success: {successCount} | Failed: {failureCount} | Rate: {(rowList.Count > 0 ? (double)successCount / rowList.Count * 100 : 0):F1}%\n";
 
                 File.AppendAllText(logFile, logEntry);
             }

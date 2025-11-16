@@ -14,10 +14,11 @@ namespace ImageInfo.Services
     {
         /// <summary>
         /// 扫描目录、进行格式转换（PNG->JPEG/WebP、JPEG->WebP）、生成报告。
+        /// 完成后自动分析日志并输出诊断报告。
         /// </summary>
         /// <param name="sourceFolder">源文件夹路径</param>
         /// <param name="openReport">是否在生成后打开报告（默认 false）</param>
-        public static void ScanConvertAndReport(string sourceFolder, int choice = 1, OutputDirectoryMode mode = OutputDirectoryMode.SiblingDirectoryWithStructure, bool openReport = false)
+        public static LogAnalyzer.DiagnosisReport? ScanConvertAndReport(string sourceFolder, int choice = 1, OutputDirectoryMode mode = OutputDirectoryMode.SiblingDirectoryWithStructure, bool openReport = false)
         {
             var files = FileScanner.GetImageFiles(sourceFolder);
             var rows = GenerateConversionRows(sourceFolder, files, choice, mode);
@@ -33,6 +34,10 @@ namespace ImageInfo.Services
             {
                 Console.WriteLine("No conversions to report.");
             }
+
+            // 自动分析日志并返回诊断报告
+            var diagnosis = LogAnalyzer.Analyze(sourceFolder);
+            return diagnosis;
         }
 
         /// <summary>
@@ -139,6 +144,9 @@ namespace ImageInfo.Services
                 var isCreationTimeValid = CreationTimeService.VerifyCreationTime(destPath, createdUtc);
                 var isMetadataValid = VerifyAIMetadata(destPath, destFormat, aiMetadata);
 
+                // 写入 AI 元数据（优先完整 FullInfo，自动验证）
+                var (metadataWritten, metadataVerified) = MetadataWriter.WriteMetadata(destPath, destFormat, aiMetadata);
+
                 rows.Add(new ConversionReportRow
                 {
                     SourcePath = Path.GetFullPath(srcPath),
@@ -159,6 +167,10 @@ namespace ImageInfo.Services
                     AISeed = aiMetadata?.Seed,
                     AISampler = aiMetadata?.Sampler,
                     AIMetadata = aiMetadata?.OtherInfo,
+                    FullAIMetadata = aiMetadata?.FullInfo,
+                    FullAIMetadataExtractionMethod = aiMetadata?.FullInfoExtractionMethod,
+                    MetadataWritten = metadataWritten,
+                    MetadataVerified = metadataVerified,
                     SourceCreatedUtc = createdUtc,
                     SourceModifiedUtc = modifiedUtc
                 });
@@ -195,6 +207,10 @@ namespace ImageInfo.Services
                     AISeed = aiMetadata?.Seed,
                     AISampler = aiMetadata?.Sampler,
                     AIMetadata = aiMetadata?.OtherInfo,
+                    FullAIMetadata = aiMetadata?.FullInfo,
+                    FullAIMetadataExtractionMethod = aiMetadata?.FullInfoExtractionMethod,
+                    MetadataWritten = false,
+                    MetadataVerified = false,
                     SourceCreatedUtc = createdUtc,
                     SourceModifiedUtc = modifiedUtc
                 });
