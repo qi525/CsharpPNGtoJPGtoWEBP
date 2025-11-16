@@ -244,7 +244,7 @@ namespace ImageInfo.Services
         {
             try
             {
-                var readBack = AIMetadataExtractor.ReadAIMetadata(destPath);
+                var readBack = MetadataExtractors.ReadAIMetadata(destPath);
                 if (string.IsNullOrEmpty(readBack.FullInfo))
                     return false;
 

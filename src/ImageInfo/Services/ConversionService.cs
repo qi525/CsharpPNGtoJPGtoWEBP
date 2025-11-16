@@ -59,8 +59,8 @@ namespace ImageInfo.Services
                     // 读取源文件的时间戳
                     var (createdUtc, modifiedUtc) = FileTimeService.ReadFileTimes(srcPath);
                     
-                    // 使用 MetadataExtractorFactory 统一提取所有格式的元数据
-                    var aiMetadata = MetadataExtractorFactory.GetImageInfo(srcPath);
+                    // 使用 MetadataExtractors 统一提取所有格式的元数据
+                    var aiMetadata = MetadataExtractors.ReadAIMetadata(srcPath);
 
                     // 映射：1 = PNG -> JPG, 2 = PNG -> WEBP, 3 = JPG -> WEBP
                     if (choice == 1)
@@ -300,18 +300,8 @@ namespace ImageInfo.Services
 
         /// <summary>
         /// 根据格式选择相应的元数据提取器。
-        /// 
-        /// 【优化说明】
-        /// 此方法已被 MetadataExtractorFactory.GetImageInfo() 替代。
-        /// 新方法集中了类型判断和分派逻辑，更符合 Factory Pattern。
-        /// 保留此方法用于向后兼容。
+        /// 直接使用 MetadataExtractors.ReadAIMetadata() 进行元数据提取。
         /// </summary>
-        [Obsolete("Use MetadataExtractorFactory.GetImageInfo() instead", false)]
-        private static AIMetadata ExtractAIMetadata(string imagePath, string format)
-        {
-            // 回退到工厂方法
-            return MetadataExtractorFactory.GetImageInfo(imagePath);
-        }
 
         /// <summary>
         /// 根据格式选择相应的元数据写入方法。

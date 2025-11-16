@@ -5,7 +5,7 @@ namespace ImageInfo.Models
 {
     /// <summary>
     /// 容器对象：表示单张图片的信息（路径、创建/修改时间、提取到的标签）。
-    /// 由 MetadataService 填充并在程序/测试中传递使用。
+    /// 由 MetadataExtractors 填充并在程序中传递使用。
     /// </summary>
     public class ImageInfoModel
     {
