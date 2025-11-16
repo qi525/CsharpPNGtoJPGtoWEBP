@@ -318,19 +318,7 @@ namespace ImageInfo.Services
         /// </summary>
         private static void WriteAIMetadata(string destPath, string format, AIMetadata aiMetadata)
         {
-            switch (format)
-            {
-                case "PNG":
-                    PngMetadataExtractor.WriteAIMetadata(destPath, aiMetadata);
-                    break;
-                case "JPG":
-                case "JPEG":
-                    JpegMetadataExtractor.WriteAIMetadata(destPath, aiMetadata);
-                    break;
-                case "WEBP":
-                    WebPMetadataExtractor.WriteAIMetadata(destPath, aiMetadata);
-                    break;
-            }
+            MetadataExtractors.WriteAIMetadata(destPath, aiMetadata);
         }
 
         /// <summary>
@@ -338,13 +326,7 @@ namespace ImageInfo.Services
         /// </summary>
         private static bool VerifyAIMetadata(string destPath, string format, AIMetadata aiMetadata)
         {
-            return format switch
-            {
-                "PNG" => PngMetadataExtractor.VerifyAIMetadata(destPath, aiMetadata),
-                "JPG" or "JPEG" => JpegMetadataExtractor.VerifyAIMetadata(destPath, aiMetadata),
-                "WEBP" => WebPMetadataExtractor.VerifyAIMetadata(destPath, aiMetadata),
-                _ => false
-            };
+            return MetadataExtractors.VerifyAIMetadata(destPath, aiMetadata);
         }
     }
 }

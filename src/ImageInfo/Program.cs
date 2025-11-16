@@ -40,7 +40,7 @@ class Program
             lastDiagnosis = ConversionService.ScanConvertAndReport(folder, 2, mode, openReport: false);
 
             Console.WriteLine("\n=== 模式 3: JPG -> WEBP ===");
-            lastDiagnosis = ConversionService.ScanConvertAndReport(folder, 3, mode, openReport: false);
+            lastDiagnosis = ConversionService.ScanConvertAndReport(folder, 3, mode, openReport: true);
 
             Console.WriteLine("\n[开发模式完成] 所有三种转换已执行。");
             

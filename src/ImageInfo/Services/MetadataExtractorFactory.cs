@@ -60,8 +60,15 @@ namespace ImageInfo.Services
         {
             try
             {
-                var metadata = PngMetadataExtractor.ReadAIMetadata(imagePath);
-                Console.WriteLine($"PNG metadata extracted from: {imagePath}");
+                // 使用统一的元数据提取器
+                var metadata = MetadataExtractors.ReadAIMetadata(imagePath);
+                
+                // 调试：输出提取结果
+                if (!string.IsNullOrEmpty(metadata.Prompt))
+                    Console.WriteLine($"[PNG] Prompt: {metadata.Prompt.Substring(0, Math.Min(100, metadata.Prompt.Length))}...");
+                if (!string.IsNullOrEmpty(metadata.FullInfo))
+                    Console.WriteLine($"[PNG] FullInfo extracted via: {metadata.FullInfoExtractionMethod}");
+                
                 return metadata;
             }
             catch (Exception ex)
@@ -73,14 +80,21 @@ namespace ImageInfo.Services
 
         /// <summary>
         /// 【具体实现 2】JPEG 元数据读取。
-        /// 分派到 JpegMetadataExtractor。
+        /// 分派到 MetadataExtractors。
         /// </summary>
         private static AIMetadata GetJpegInfo(string imagePath)
         {
             try
             {
-                var metadata = JpegMetadataExtractor.ReadAIMetadata(imagePath);
-                Console.WriteLine($"JPEG metadata extracted from: {imagePath}");
+                // 使用统一的元数据提取器
+                var metadata = MetadataExtractors.ReadAIMetadata(imagePath);
+                
+                // 调试：输出提取结果
+                if (!string.IsNullOrEmpty(metadata.Prompt))
+                    Console.WriteLine($"[JPEG] Prompt: {metadata.Prompt.Substring(0, Math.Min(100, metadata.Prompt.Length))}...");
+                if (!string.IsNullOrEmpty(metadata.FullInfo))
+                    Console.WriteLine($"[JPEG] FullInfo extracted via: {metadata.FullInfoExtractionMethod}");
+                
                 return metadata;
             }
             catch (Exception ex)
@@ -92,14 +106,21 @@ namespace ImageInfo.Services
 
         /// <summary>
         /// 【具体实现 3】WebP 元数据读取。
-        /// 分派到 WebPMetadataExtractor。
+        /// 分派到 MetadataExtractors。
         /// </summary>
         private static AIMetadata GetWebPInfo(string imagePath)
         {
             try
             {
-                var metadata = WebPMetadataExtractor.ReadAIMetadata(imagePath);
-                Console.WriteLine($"WebP metadata extracted from: {imagePath}");
+                // 使用统一的元数据提取器
+                var metadata = MetadataExtractors.ReadAIMetadata(imagePath);
+                
+                // 调试：输出提取结果
+                if (!string.IsNullOrEmpty(metadata.Prompt))
+                    Console.WriteLine($"[WebP] Prompt: {metadata.Prompt.Substring(0, Math.Min(100, metadata.Prompt.Length))}...");
+                if (!string.IsNullOrEmpty(metadata.FullInfo))
+                    Console.WriteLine($"[WebP] FullInfo extracted via: {metadata.FullInfoExtractionMethod}");
+                
                 return metadata;
             }
             catch (Exception ex)
