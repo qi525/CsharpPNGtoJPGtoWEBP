@@ -162,8 +162,20 @@ namespace ImageInfo.Services
                 var isTimeValid = FileTimeService.VerifyFileTimes(destPath, modifiedUtc);
                 var isCreationTimeValid = CreationTimeService.VerifyCreationTime(destPath, createdUtc);
                 
+                // 【重要】写入 AI 元数据前，保存当前的文件时间
+                // 因为 MetadataWriter.WriteMetadata() 会重新写入文件，导致修改时间被更新
+                var (savedCreatedUtc, savedModifiedUtc) = FileTimeService.ReadFileTimes(destPath);
+                
                 // 写入 AI 元数据（使用新的 MetadataWriter，带完整验证）
                 var (metadataWritten, metadataVerified) = MetadataWriter.WriteMetadata(destPath, destFormat, aiMetadata);
+
+                // 【重要】元数据写入后，需要恢复文件的原始时间戳
+                // MetadataWriter.WriteMetadata() 的 image.Write() 操作会修改文件的修改时间
+                if (metadataWritten)
+                {
+                    FileTimeService.WriteFileTimes(destPath, savedCreatedUtc, savedModifiedUtc);
+                    CreationTimeService.SetCreationTime(destPath, savedCreatedUtc);
+                }
 
                 // 读取转换后文件的元数据和时间戳
                 var destAiMetadata = MetadataExtractors.ReadAIMetadata(destPath);
