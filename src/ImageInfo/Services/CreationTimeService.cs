@@ -102,90 +102,26 @@ namespace ImageInfo.Services
             }
         }
 
-        // ======================== Windows P/Invoke ========================
-
-        [DllImport("kernel32.dll", SetLastError = true)]
-        private static extern IntPtr CreateFileW(
-            string lpFileName,
-            uint dwDesiredAccess,
-            uint dwShareMode,
-            IntPtr lpSecurityAttributes,
-            uint dwCreationDisposition,
-            uint dwFlagsAndAttributes,
-            IntPtr hTemplateFile);
-
-        [DllImport("kernel32.dll", SetLastError = true)]
-        private static extern bool SetFileTime(
-            IntPtr hFile,
-            ref long lpCreationTime,
-            ref long lpLastAccessTime,
-            ref long lpLastWriteTime);
-
-        [DllImport("kernel32.dll", SetLastError = true)]
-        private static extern bool CloseHandle(IntPtr hObject);
-
-        private const uint GENERIC_WRITE = 0x40000000;
-        private const uint FILE_SHARE_READ = 0x00000001;
-        private const uint OPEN_EXISTING = 3;
-        private const uint FILE_ATTRIBUTE_NORMAL = 0x00000080;
-        private const int INVALID_HANDLE_VALUE = -1;
+        // ======================== 不再使用 P/Invoke，改用 C# 原生 File.SetCreationTime ========================
+        // 原生方法更可靠，避免文件锁定问题
 
         /// <summary>
         /// Windows 平台专用：使用 SetFileTime API 修改文件创建时间。
         /// </summary>
         private static bool SetCreationTimeWindows(string filePath, DateTime creationTime)
         {
-            IntPtr fileHandle = IntPtr.Zero;
-
             try
             {
-                // 打开文件句柄
-                fileHandle = CreateFileW(
-                    filePath,
-                    GENERIC_WRITE,
-                    FILE_SHARE_READ,
-                    IntPtr.Zero,
-                    OPEN_EXISTING,
-                    FILE_ATTRIBUTE_NORMAL,
-                    IntPtr.Zero);
-
-                if (fileHandle.ToInt32() == INVALID_HANDLE_VALUE)
-                {
-                    Console.WriteLine($"Failed to open file handle: {filePath}");
-                    return false;
-                }
-
-                // 转换 DateTime 为 Windows FILETIME 格式
-                long creationTimeLong = creationTime.ToFileTimeUtc();
-                long lastAccessTimeLong = DateTime.UtcNow.ToFileTimeUtc();
-                long lastWriteTimeLong = DateTime.UtcNow.ToFileTimeUtc();
-
-                // 调用 SetFileTime
-                bool result = SetFileTime(fileHandle, ref creationTimeLong, ref lastAccessTimeLong, ref lastWriteTimeLong);
-
-                if (result)
-                {
-                    Console.WriteLine($"Creation time set to {creationTime:yyyy-MM-dd HH:mm:ss} for {filePath}");
-                }
-                else
-                {
-                    int errorCode = Marshal.GetLastWin32Error();
-                    Console.WriteLine($"SetFileTime failed with error code: {errorCode}");
-                }
-
-                return result;
+                // 直接使用 C# 原生方法替代 P/Invoke
+                // 这样更可靠，不会出现文件锁定问题
+                File.SetCreationTime(filePath, creationTime);
+                Console.WriteLine($"Creation time set to {creationTime:yyyy-MM-dd HH:mm:ss} for {filePath}");
+                return true;
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"Exception in SetCreationTimeWindows: {ex.Message}");
                 return false;
-            }
-            finally
-            {
-                if (fileHandle != IntPtr.Zero && fileHandle.ToInt32() != INVALID_HANDLE_VALUE)
-                {
-                    CloseHandle(fileHandle);
-                }
             }
         }
     }

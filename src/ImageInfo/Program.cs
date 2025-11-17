@@ -1,6 +1,6 @@
 using System;
+using System.IO;
 using ImageInfo.Services;
-using ImageInfo.Models;
 
 namespace ImageInfo;
 
@@ -8,87 +8,63 @@ class Program
 {
     static int Main(string[] args)
     {
-        string folder;
-        if (args.Length > 0)
-        {
-            folder = args[0];
-        }
-        else
-        {
-            Console.WriteLine("请输入要扫描和转换的根文件夹路径（按回车使用默认: C:\\Users\\10374\\Desktop\\test）：");
-            var input = Console.ReadLine();
-            folder = string.IsNullOrWhiteSpace(input) ? @"C:\\Users\\10374\\Desktop\\test" : input.Trim();
-        }
-
+        // 读取模式选择：开发模式或生产模式
+        string folder = GetInputFolder(args);
         Console.WriteLine($"Scanning and converting images in: {folder}\n");
 
-        // 检查开发模式环境变量
-        bool isDevelopmentMode = !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("IMAGEINFO_DEV"));
-
-        if (isDevelopmentMode)
+        // 开发模式处理
+        if (IsDevelopmentMode(out string? devMode))
         {
-            // 开发模式：自动运行所有三种转换
-            Console.WriteLine("[开发模式] 将自动批量运行所有三种转换模式...");
-            var mode = OutputDirectoryMode.SiblingDirectoryWithStructure;
-
-            LogAnalyzer.DiagnosisReport? lastDiagnosis = null;
-
-            Console.WriteLine("\n=== 模式 1: PNG -> JPG ===");
-            lastDiagnosis = ConversionService.ScanConvertAndReport(folder, 1, mode, openReport: false);
-
-            Console.WriteLine("\n=== 模式 2: PNG -> WEBP ===");
-            lastDiagnosis = ConversionService.ScanConvertAndReport(folder, 2, mode, openReport: false);
-
-            Console.WriteLine("\n=== 模式 3: JPG -> WEBP ===");
-            lastDiagnosis = ConversionService.ScanConvertAndReport(folder, 3, mode, openReport: true);
-
-            Console.WriteLine("\n[开发模式完成] 所有三种转换已执行。");
-            
-            // 展示最后的诊断报告
-            if (lastDiagnosis != null)
-            {
-                LogAnalyzer.PrintDiagnosisToConsole(lastDiagnosis);
-            }
-        }
-        else
-        {
-            // 生产模式：交互式菜单
-            // 选择转换格式映射：1 = PNG -> JPG, 2 = PNG -> WEBP, 3 = JPG -> WEBP
-            int choice = 0;
-            while (choice < 1 || choice > 3)
-            {
-                Console.WriteLine("请选择转换模式：");
-                Console.WriteLine("  1) PNG -> JPG");
-                Console.WriteLine("  2) PNG -> WEBP");
-                Console.WriteLine("  3) JPG  -> WEBP");
-                var c = Console.ReadLine();
-                if (!int.TryParse(c, out choice)) choice = 0;
-            }
-
-            // 选择输出目录模式
-            int modeInput = 0;
-            while (modeInput != 1 && modeInput != 2)
-            {
-                Console.WriteLine("请选择输出目录模式 (1: 兄弟目录并复刻结构, 2: 本地子目录): ");
-                var m = Console.ReadLine();
-                if (!int.TryParse(m, out modeInput)) modeInput = 0;
-            }
-
-            var mode = modeInput == 1 ? OutputDirectoryMode.SiblingDirectoryWithStructure : OutputDirectoryMode.LocalSubdirectory;
-
-            Console.WriteLine($"开始转换（目标格式: {(choice==1?"JPG":"WEBP")}, 输出模式: {mode}）\n");
-
-            var diagnosis = ConversionService.ScanConvertAndReport(folder, choice, mode, openReport: true);
-            
-            // 展示诊断报告
-            if (diagnosis != null)
-            {
-                LogAnalyzer.PrintDiagnosisToConsole(diagnosis);
-            }
+            return HandleDevelopmentMode(folder, devMode);
         }
 
-        Console.WriteLine("按回车键退出...");
-        Console.ReadLine();
+        // 生产模式处理
+        return ProductionModeService.RunInteractiveMode(folder);
+    }
+
+    private static string GetInputFolder(string[] args)
+    {
+        if (args.Length > 0)
+            return args[0];
+
+        if (!string.IsNullOrEmpty(Environment.GetEnvironmentVariable("IMAGEINFO_DEV")))
+            return @"C:\Users\10374\Desktop\test";
+
+        Console.WriteLine("请输入要扫描和转换的根文件夹路径（按回车使用默认: C:\\Users\\10374\\Desktop\\test）：");
+        var input = Console.ReadLine();
+        return string.IsNullOrWhiteSpace(input) ? @"C:\Users\10374\Desktop\test" : input.Trim();
+    }
+
+    private static bool IsDevelopmentMode(out string? devMode)
+    {
+        devMode = Environment.GetEnvironmentVariable("IMAGEINFO_DEV");
+        return !string.IsNullOrEmpty(devMode);
+    }
+
+    private static int HandleDevelopmentMode(string folder, string? devMode)
+    {
+        if (devMode?.ToLowerInvariant() == "scan")
+        {
+            Console.WriteLine("[开发模式-扫描] 读取元数据并生成 Excel 报告...\n");
+            DevelopmentModeService.RunScanMode(folder);
+            return 0;
+        }
+
+        if (devMode?.ToLowerInvariant() == "read")
+        {
+            Console.WriteLine("[开发模式-读取] 扫描所有图片并读取元数据...\n");
+            DevelopmentModeService.RunReadOnlyDiagnosisMode(folder);
+            return 0;
+        }
+
+        if (devMode?.ToLowerInvariant() == "test")
+        {
+            Console.WriteLine("[开发模式-测试] 运行元数据写入/读取/验证测试...\n");
+            DevelopmentModeService.RunFullMetadataTest();
+            return 0;
+        }
+
+        DevelopmentModeService.RunFullConversionMode(folder);
         return 0;
     }
 }

@@ -34,54 +34,164 @@ namespace ImageInfo.Services
             using var wb = new XLWorkbook();
             var ws = wb.Worksheets.Add("Conversions");
 
-            // Header (Chinese) - 添加报告时间戳列、AI元数据完整信息、元数据写入状态
+            // Header (Chinese) - 新增转换后文件的元数据和时间戳对比
             var headers = new[] {
                 "源文件路径", "目标文件路径",
-                "源宽度", "源高度", "源格式", "源参数",
-                "目标宽度", "目标高度", "目标格式", "目标参数",
+                "源宽度", "源高度", "源格式", 
+                "目标宽度", "目标高度", "目标格式",
                 "转换成功", "错误信息",
-                "AI Prompt", "AI 负 Prompt", "AI 模型", "AI 种子", "AI 采样器", "AI 其他信息",
-                "完整AI元数据", "元数据提取方法", "元数据已写入", "元数据已验证",
-                "源创建时间", "源修改时间", "报告时间戳"
+                // 源文件元数据
+                "源完整AI元数据 (FullInfo)", "源元数据提取方法", 
+                "源AI Prompt (正向)", "源AI 负 Prompt (负向)", 
+                "源AI 模型", "源AI 种子", "源AI 采样器", "源AI 其他信息",
+                // 转换后文件元数据 - 新增
+                "转换后完整AI元数据 (FullInfo)", "转换后元数据提取方法",
+                "转换后AI Prompt (正向)", "转换后AI 负 Prompt (负向)",
+                "转换后AI 模型", "转换后AI 种子", "转换后AI 采样器", "转换后AI 其他信息",
+                // 元数据写入验证
+                "元数据已写入", "元数据已验证",
+                // 时间戳信息
+                "源创建时间", "源修改时间",
+                "转换后创建时间", "转换后修改时间",
+                "创建时间一致性", "修改时间一致性",
+                "报告时间戳"
             };
 
             for (int i = 0; i < headers.Length; i++)
                 ws.Cell(1, i + 1).Value = headers[i];
 
+            // 设置列宽和格式
+            ws.Column(1).Width = 30;   // 源文件路径
+            ws.Column(2).Width = 30;   // 目标文件路径
+            ws.Column(3).Width = 10;   // 源宽度
+            ws.Column(4).Width = 10;   // 源高度
+            ws.Column(5).Width = 10;   // 源格式
+            ws.Column(6).Width = 10;   // 目标宽度
+            ws.Column(7).Width = 10;   // 目标高度
+            ws.Column(8).Width = 10;   // 目标格式
+            ws.Column(9).Width = 10;   // 转换成功
+            ws.Column(10).Width = 20;  // 错误信息
+            ws.Column(11).Width = 60;  // 源完整AI元数据
+            ws.Column(12).Width = 15;  // 源元数据提取方法
+            ws.Column(13).Width = 40;  // 源Prompt
+            ws.Column(14).Width = 40;  // 源NegativePrompt
+            ws.Column(15).Width = 20;  // 源模型
+            ws.Column(16).Width = 15;  // 源种子
+            ws.Column(17).Width = 15;  // 源采样器
+            ws.Column(18).Width = 20;  // 源其他信息
+            ws.Column(19).Width = 60;  // 转换后完整AI元数据
+            ws.Column(20).Width = 15;  // 转换后元数据提取方法
+            ws.Column(21).Width = 40;  // 转换后Prompt
+            ws.Column(22).Width = 40;  // 转换后NegativePrompt
+            ws.Column(23).Width = 20;  // 转换后模型
+            ws.Column(24).Width = 15;  // 转换后种子
+            ws.Column(25).Width = 15;  // 转换后采样器
+            ws.Column(26).Width = 20;  // 转换后其他信息
+            ws.Column(27).Width = 12;  // 元数据已写入
+            ws.Column(28).Width = 12;  // 元数据已验证
+            ws.Column(29).Width = 20;  // 源创建时间
+            ws.Column(30).Width = 20;  // 源修改时间
+            ws.Column(31).Width = 20;  // 转换后创建时间
+            ws.Column(32).Width = 20;  // 转换后修改时间
+            ws.Column(33).Width = 12;  // 创建时间一致性
+            ws.Column(34).Width = 12;  // 修改时间一致性
+            ws.Column(35).Width = 20;  // 报告时间戳
+
+            // 设置表头样式（粗体、背景色）
+            for (int i = 1; i <= headers.Length; i++)
+            {
+                var headerCell = ws.Cell(1, i);
+                headerCell.Style.Font.Bold = true;
+                headerCell.Style.Fill.BackgroundColor = XLColor.LightGray;
+                headerCell.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+                headerCell.Style.Alignment.Vertical = XLAlignmentVerticalValues.Center;
+            }
+
             int r = 2;
             var reportTimestamp = DateTime.UtcNow.ToString("o"); // ISO 8601
             foreach (var row in rows)
             {
-                ws.Cell(r, 1).Value = TruncateIfNeeded(row.SourcePath, 1000);
-                ws.Cell(r, 2).Value = TruncateIfNeeded(row.DestPath, 1000);
-                ws.Cell(r, 3).Value = row.SourceWidth;
-                ws.Cell(r, 4).Value = row.SourceHeight;
-                ws.Cell(r, 5).Value = TruncateIfNeeded(row.SourceFormat, 100);
-                ws.Cell(r, 6).Value = TruncateIfNeeded(row.SourceParams, 200);
-                ws.Cell(r, 7).Value = row.DestWidth;
-                ws.Cell(r, 8).Value = row.DestHeight;
-                ws.Cell(r, 9).Value = TruncateIfNeeded(row.DestFormat, 100);
-                ws.Cell(r, 10).Value = TruncateIfNeeded(row.DestParams, 200);
-                ws.Cell(r, 11).Value = row.Success;
-                ws.Cell(r, 12).Value = TruncateIfNeeded(row.ErrorMessage, 500);
-                ws.Cell(r, 13).Value = TruncateIfNeeded(row.AIPrompt, 1000);
-                ws.Cell(r, 14).Value = TruncateIfNeeded(row.AINegativePrompt, 1000);
-                ws.Cell(r, 15).Value = TruncateIfNeeded(row.AIModel, 200);
-                ws.Cell(r, 16).Value = TruncateIfNeeded(row.AISeed, 100);
-                ws.Cell(r, 17).Value = TruncateIfNeeded(row.AISampler, 100);
-                ws.Cell(r, 18).Value = TruncateIfNeeded(row.AIMetadata, 1000);
-                ws.Cell(r, 19).Value = TruncateIfNeeded(row.FullAIMetadata, 1000);
-                ws.Cell(r, 20).Value = TruncateIfNeeded(row.FullAIMetadataExtractionMethod, 100);
-                ws.Cell(r, 21).Value = row.MetadataWritten;
-                ws.Cell(r, 22).Value = row.MetadataVerified;
-                ws.Cell(r, 23).Value = row.SourceCreatedUtc?.ToString("u");
-                ws.Cell(r, 24).Value = row.SourceModifiedUtc?.ToString("u");
-                ws.Cell(r, 25).Value = reportTimestamp;
+                int col = 1;
+                ws.Cell(r, col++).Value = row.SourcePath;
+                ws.Cell(r, col++).Value = row.DestPath;
+                ws.Cell(r, col++).Value = row.SourceWidth;
+                ws.Cell(r, col++).Value = row.SourceHeight;
+                ws.Cell(r, col++).Value = row.SourceFormat;
+                ws.Cell(r, col++).Value = row.DestWidth;
+                ws.Cell(r, col++).Value = row.DestHeight;
+                ws.Cell(r, col++).Value = row.DestFormat;
+                ws.Cell(r, col++).Value = row.Success;
+                ws.Cell(r, col++).Value = row.ErrorMessage;
+                
+                // 源文件元数据
+                ws.Cell(r, col++).Value = row.FullAIMetadata ?? string.Empty;
+                ws.Cell(r, col++).Value = row.FullAIMetadataExtractionMethod;
+                ws.Cell(r, col++).Value = row.AIPrompt ?? string.Empty;
+                ws.Cell(r, col++).Value = row.AINegativePrompt ?? string.Empty;
+                ws.Cell(r, col++).Value = row.AIModel;
+                ws.Cell(r, col++).Value = row.AISeed;
+                ws.Cell(r, col++).Value = row.AISampler;
+                ws.Cell(r, col++).Value = row.AIMetadata;
+                
+                // 转换后文件元数据 - 新增
+                ws.Cell(r, col++).Value = row.DestFullAIMetadata ?? string.Empty;
+                ws.Cell(r, col++).Value = row.DestFullAIMetadataExtractionMethod;
+                ws.Cell(r, col++).Value = row.DestAIPrompt ?? string.Empty;
+                ws.Cell(r, col++).Value = row.DestAINegativePrompt ?? string.Empty;
+                ws.Cell(r, col++).Value = row.DestAIModel;
+                ws.Cell(r, col++).Value = row.DestAISeed;
+                ws.Cell(r, col++).Value = row.DestAISampler;
+                ws.Cell(r, col++).Value = row.DestAIMetadata;
+                
+                // 元数据写入验证
+                ws.Cell(r, col++).Value = row.MetadataWritten;
+                ws.Cell(r, col++).Value = row.MetadataVerified;
+                
+                // 时间戳信息
+                ws.Cell(r, col++).Value = row.SourceCreatedUtc?.ToString("u");
+                ws.Cell(r, col++).Value = row.SourceModifiedUtc?.ToString("u");
+                ws.Cell(r, col++).Value = row.DestCreatedUtc?.ToString("u");
+                ws.Cell(r, col++).Value = row.DestModifiedUtc?.ToString("u");
+                
+                // 时间戳一致性 - 新增
+                ws.Cell(r, col++).Value = row.CreatedTimeMatches == true ? "是" : (row.CreatedTimeMatches == false ? "否" : "N/A");
+                ws.Cell(r, col++).Value = row.ModifiedTimeMatches == true ? "是" : (row.ModifiedTimeMatches == false ? "否" : "N/A");
+                
+                ws.Cell(r, col++).Value = reportTimestamp;
                 r++;
             }
 
-            // Auto-fit columns for readability
-            ws.Columns().AdjustToContents();
+            // 设置列宽并启用文本换行
+            ws.Column(1).Width = 40;   // 源文件路径
+            ws.Column(2).Width = 40;   // 目标文件路径
+            ws.Column(10).Width = 50;  // 错误信息
+            ws.Column(11).Width = 80;  // 源完整AI元数据
+            ws.Column(12).Width = 25;  // 源元数据提取方法
+            ws.Column(13).Width = 80;  // 源Prompt
+            ws.Column(14).Width = 80;  // 源负Prompt
+            ws.Column(19).Width = 80;  // 转换后完整AI元数据
+            ws.Column(20).Width = 25;  // 转换后元数据提取方法
+            ws.Column(21).Width = 80;  // 转换后Prompt
+            ws.Column(22).Width = 80;  // 转换后负Prompt
+
+            // 启用所有包含文本的单元格的换行，并设置对齐方式
+            for (int col = 1; col <= headers.Length; col++)
+            {
+                for (int row = 2; row <= r - 1; row++)
+                {
+                    var cell = ws.Cell(row, col);
+                    cell.Style.Alignment.WrapText = true;
+                    cell.Style.Alignment.Vertical = XLAlignmentVerticalValues.Top;
+                    cell.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Left;
+                }
+            }
+
+            // 设置行高
+            ws.Row(1).Height = 30; // 表头行高
+            for (int row = 2; row <= r - 1; row++)
+            {
+                ws.Row(row).Height = 50; // 数据行高（允许文本换行显示）
+            }
 
             // Ensure directory exists
             if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir))

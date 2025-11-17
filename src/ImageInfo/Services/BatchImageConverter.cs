@@ -4,7 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using SkiaSharp;
+using ImageMagick;
 
 namespace ImageInfo.Services
 {
@@ -319,10 +319,10 @@ namespace ImageInfo.Services
 
             try
             {
-                using var inputBitmap = SKBitmap.Decode(pngPath);
-                using var data = inputBitmap.Encode(SKEncodedImageFormat.Webp, quality);
-                using var outFile = File.Create(outPath);
-                data.SaveTo(outFile);
+                using var image = new MagickImage(pngPath);
+                image.Format = MagickFormat.WebP;
+                image.Quality = quality;
+                image.Write(outPath);
 
                 sw.Stop();
                 var outputInfo = new FileInfo(outPath);
@@ -362,10 +362,10 @@ namespace ImageInfo.Services
 
             try
             {
-                using var inputBitmap = SKBitmap.Decode(jpegPath);
-                using var data = inputBitmap.Encode(SKEncodedImageFormat.Webp, quality);
-                using var outFile = File.Create(outPath);
-                data.SaveTo(outFile);
+                using var image = new MagickImage(jpegPath);
+                image.Format = MagickFormat.WebP;
+                image.Quality = quality;
+                image.Write(outPath);
 
                 sw.Stop();
                 var outputInfo = new FileInfo(outPath);
@@ -398,3 +398,4 @@ namespace ImageInfo.Services
         #endregion
     }
 }
+

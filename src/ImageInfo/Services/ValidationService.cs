@@ -1,6 +1,6 @@
 using System;
 using System.IO;
-using SixLabors.ImageSharp;
+using ImageMagick;
 
 namespace ImageInfo.Services
 {
@@ -27,7 +27,7 @@ namespace ImageInfo.Services
         public static bool FileExists(string path) => File.Exists(path);
 
         /// <summary>
-        /// 判断指定路径的图片文件能否被 ImageSharp 成功加载。
+        /// 判断指定路径的图片文件能否被 Magick.NET 成功加载。
         /// 常用于验证图片文件是否损坏或格式受支持。
         /// </summary>
         /// <param name="path">图片文件路径</param>
@@ -36,7 +36,7 @@ namespace ImageInfo.Services
         {
             try
             {
-                using var img = Image.Load(path);
+                using var img = new MagickImage(path);
                 return img != null && img.Width > 0 && img.Height > 0;
             }
             catch
@@ -65,8 +65,8 @@ namespace ImageInfo.Services
 
             try
             {
-                using var src = Image.Load(sourcePath);
-                using var dst = Image.Load(destPath);
+                using var src = new MagickImage(sourcePath);
+                using var dst = new MagickImage(destPath);
                 return src.Width == dst.Width && src.Height == dst.Height;
             }
             catch

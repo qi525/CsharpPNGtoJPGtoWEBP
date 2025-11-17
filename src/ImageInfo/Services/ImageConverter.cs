@@ -4,10 +4,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using SixLabors.ImageSharp;
-using SixLabors.ImageSharp.Formats.Jpeg;
-using SixLabors.ImageSharp.Processing;
-using SkiaSharp;
+using ImageMagick;
 
 namespace ImageInfo.Services
 {
@@ -35,15 +32,16 @@ namespace ImageInfo.Services
             if (string.IsNullOrWhiteSpace(outPath))
                 outPath = Path.ChangeExtension(pngPath, ".jpg");
 
-            using var image = SixLabors.ImageSharp.Image.Load(pngPath);
-            var encoder = new JpegEncoder { Quality = quality };
-            image.Mutate(x => x.BackgroundColor(SixLabors.ImageSharp.Color.White));
-            image.Save(outPath, encoder);
+            using var image = new MagickImage(pngPath);
+            image.Format = MagickFormat.Jpeg;
+            image.Quality = quality;
+            image.BackgroundColor = MagickColor.FromRgba(255, 255, 255, 255);
+            image.Write(outPath);
             return outPath;
         }
 
         /// <summary>
-        /// 将 PNG 图片转换为 WebP 格式（使用 SkiaSharp）。
+        /// 将 PNG 图片转换为 WebP 格式（使用 Magick.NET）。
         /// 返回输出文件路径（默认同名 .webp）。
         /// </summary>
         /// <param name="pngPath">源 PNG 文件路径</param>
@@ -55,15 +53,15 @@ namespace ImageInfo.Services
             if (string.IsNullOrWhiteSpace(outPath))
                 outPath = Path.ChangeExtension(pngPath, ".webp");
 
-            using var inputBitmap = SKBitmap.Decode(pngPath);
-            using var data = inputBitmap.Encode(SKEncodedImageFormat.Webp, quality);
-            using var outFile = File.Create(outPath);
-            data.SaveTo(outFile);
+            using var image = new MagickImage(pngPath);
+            image.Format = MagickFormat.WebP;
+            image.Quality = quality;
+            image.Write(outPath);
             return outPath;
         }
 
         /// <summary>
-        /// 将 JPEG 图片转换为 WebP 格式（使用 SkiaSharp）。
+        /// 将 JPEG 图片转换为 WebP 格式（使用 Magick.NET）。
         /// 返回输出文件路径（默认同名 .webp）。
         /// </summary>
         /// <param name="jpgPath">源 JPEG 文件路径</param>
@@ -75,15 +73,15 @@ namespace ImageInfo.Services
             if (string.IsNullOrWhiteSpace(outPath))
                 outPath = Path.ChangeExtension(jpgPath, ".webp");
 
-            using var inputBitmap = SKBitmap.Decode(jpgPath);
-            using var data = inputBitmap.Encode(SKEncodedImageFormat.Webp, quality);
-            using var outFile = File.Create(outPath);
-            data.SaveTo(outFile);
+            using var image = new MagickImage(jpgPath);
+            image.Format = MagickFormat.WebP;
+            image.Quality = quality;
+            image.Write(outPath);
             return outPath;
         }
 
         /// <summary>
-        /// 将 WebP 图片转换为 JPEG 格式（使用 SkiaSharp 解码并编码为 JPEG）。
+        /// 将 WebP 图片转换为 JPEG 格式（使用 Magick.NET）。
         /// 返回输出文件路径（默认同名 .jpg）。
         /// </summary>
         public static string ConvertWebPToJpeg(string webpPath, string? outPath = null, int quality = 85)
@@ -91,10 +89,10 @@ namespace ImageInfo.Services
             if (string.IsNullOrWhiteSpace(outPath))
                 outPath = Path.ChangeExtension(webpPath, ".jpg");
 
-            using var inputBitmap = SKBitmap.Decode(webpPath);
-            using var data = inputBitmap.Encode(SKEncodedImageFormat.Jpeg, quality);
-            using var outFile = File.Create(outPath);
-            data.SaveTo(outFile);
+            using var image = new MagickImage(webpPath);
+            image.Format = MagickFormat.Jpeg;
+            image.Quality = quality;
+            image.Write(outPath);
             return outPath;
         }
 

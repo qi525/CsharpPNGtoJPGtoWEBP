@@ -64,6 +64,33 @@ namespace ImageInfo.Models
         /// <summary>源文件修改时间（UTC）。</summary>
         public DateTime? SourceModifiedUtc { get; set; }
 
+        /// <summary>转换后文件的完整 AI 元数据块。</summary>
+        public string? DestFullAIMetadata { get; set; }
+        /// <summary>转换后文件的元数据提取方法。</summary>
+        public string? DestFullAIMetadataExtractionMethod { get; set; }
+        /// <summary>转换后文件的 AI Prompt（正向）。</summary>
+        public string? DestAIPrompt { get; set; }
+        /// <summary>转换后文件的 AI 负 Prompt（负向）。</summary>
+        public string? DestAINegativePrompt { get; set; }
+        /// <summary>转换后文件的 AI 模型。</summary>
+        public string? DestAIModel { get; set; }
+        /// <summary>转换后文件的 AI 种子。</summary>
+        public string? DestAISeed { get; set; }
+        /// <summary>转换后文件的 AI 采样器。</summary>
+        public string? DestAISampler { get; set; }
+        /// <summary>转换后文件的 AI 其他信息。</summary>
+        public string? DestAIMetadata { get; set; }
+
+        /// <summary>转换后文件创建时间（UTC）。</summary>
+        public DateTime? DestCreatedUtc { get; set; }
+        /// <summary>转换后文件修改时间（UTC）。</summary>
+        public DateTime? DestModifiedUtc { get; set; }
+
+        /// <summary>源文件和转换后文件的创建时间是否一致。</summary>
+        public bool? CreatedTimeMatches { get; set; }
+        /// <summary>源文件和转换后文件的修改时间是否一致。</summary>
+        public bool? ModifiedTimeMatches { get; set; }
+
         /// <summary>报告生成的时间戳（ISO 8601 格式，UTC）。</summary>
         public string? ReportTimestamp { get; set; }
     }

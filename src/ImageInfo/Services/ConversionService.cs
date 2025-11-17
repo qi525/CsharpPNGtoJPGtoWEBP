@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using ImageInfo.Models;
-using SixLabors.ImageSharp;
+using ImageMagick;
 using System.Linq;
 
 namespace ImageInfo.Services
@@ -53,7 +53,7 @@ namespace ImageInfo.Services
             {
                 try
                 {
-                    using var srcImg = Image.Load(srcPath);
+                    using var srcImg = new MagickImage(srcPath);
                     var srcFormat = Path.GetExtension(srcPath).TrimStart('.').ToUpperInvariant();
 
                     // 读取源文件的时间戳
@@ -67,19 +67,19 @@ namespace ImageInfo.Services
                     {
                         // PNG -> JPG
                         if (srcFormat == "PNG")
-                            AddConversionRow(rows, srcPath, srcImg, rootFolder, mode, "JPG", 85, createdUtc, modifiedUtc, aiMetadata);
+                            AddConversionRow(rows, srcPath, rootFolder, mode, "JPG", 85, createdUtc, modifiedUtc, aiMetadata);
                     }
                     else if (choice == 2)
                     {
                         // PNG -> WEBP
                         if (srcFormat == "PNG")
-                            AddConversionRow(rows, srcPath, srcImg, rootFolder, mode, "WEBP", 80, createdUtc, modifiedUtc, aiMetadata);
+                            AddConversionRow(rows, srcPath, rootFolder, mode, "WEBP", 80, createdUtc, modifiedUtc, aiMetadata);
                     }
                     else if (choice == 3)
                     {
                         // JPG -> WEBP
                         if (srcFormat == "JPG" || srcFormat == "JPEG")
-                            AddConversionRow(rows, srcPath, srcImg, rootFolder, mode, "WEBP", 80, createdUtc, modifiedUtc, aiMetadata);
+                            AddConversionRow(rows, srcPath, rootFolder, mode, "WEBP", 80, createdUtc, modifiedUtc, aiMetadata);
                     }
                 }
                 catch (Exception ex)
@@ -101,7 +101,7 @@ namespace ImageInfo.Services
         /// 3. 【验证】结果校验、时间戳验证、元数据验证、创建时间验证
         /// 4. 【恢复】失败时备份源文件，成功时设置创建时间（Windows P/Invoke）
         /// </summary>
-        private static void AddConversionRow(List<ConversionReportRow> rows, string srcPath, Image srcImg,
+        private static void AddConversionRow(List<ConversionReportRow> rows, string srcPath,
             string rootFolder, OutputDirectoryMode mode, string destFormat, int quality, DateTime createdUtc, DateTime modifiedUtc, AIMetadata aiMetadata)
         {
             var srcFormat = Path.GetExtension(srcPath).TrimStart('.').ToUpperInvariant();
@@ -116,6 +116,19 @@ namespace ImageInfo.Services
 
             var destPath = Path.Combine(outputDir, Path.GetFileNameWithoutExtension(srcPath) + "." + destExt);
 
+            // 提前读取源文件的尺寸
+            int srcWidth = 0, srcHeight = 0;
+            try
+            {
+                using var srcImg = new MagickImage(srcPath);
+                srcWidth = srcImg.Width;
+                srcHeight = srcImg.Height;
+            }
+            catch
+            {
+                // 如果读取失败，使用 0 作为默认值
+            }
+
             try
             {
                 // 【读】已在前面执行（源文件加载、元数据读取）
@@ -128,38 +141,51 @@ namespace ImageInfo.Services
                 else if ((srcFormat == "JPG" || srcFormat == "JPEG") && destFormat == "WEBP")
                     ImageConverter.ConvertJpegToWebP(srcPath, destPath, quality);
 
-                // 写入 AI 元数据
-                WriteAIMetadata(destPath, destFormat, aiMetadata);
-
                 // 复刻文件时间
                 FileTimeService.WriteFileTimes(destPath, createdUtc, modifiedUtc);
                 
+                // 【验证】先在关闭所有文件句柄后再进行验证（避免文件被锁定）
+                int destWidth = 0, destHeight = 0;
+                using (var destImg = new MagickImage(destPath))
+                {
+                    destWidth = destImg.Width;
+                    destHeight = destImg.Height;
+                }
+                // 至此 destImg 已被释放，文件句柄已关闭
+                
                 // 使用 CreationTimeService 设置创建时间（Windows P/Invoke）
+                // 现在文件不再被锁定，操作应该能成功
                 CreationTimeService.SetCreationTime(destPath, createdUtc);
 
-                // 【验证】读取并验证结果
-                using var destImg = Image.Load(destPath);
+                // 继续进行其他验证
                 var isValidConversion = ValidationService.ValidateConversion(srcPath, destPath);
                 var isTimeValid = FileTimeService.VerifyFileTimes(destPath, modifiedUtc);
                 var isCreationTimeValid = CreationTimeService.VerifyCreationTime(destPath, createdUtc);
-                var isMetadataValid = VerifyAIMetadata(destPath, destFormat, aiMetadata);
-
-                // 写入 AI 元数据（优先完整 FullInfo，自动验证）
+                
+                // 写入 AI 元数据（使用新的 MetadataWriter，带完整验证）
                 var (metadataWritten, metadataVerified) = MetadataWriter.WriteMetadata(destPath, destFormat, aiMetadata);
+
+                // 读取转换后文件的元数据和时间戳
+                var destAiMetadata = MetadataExtractors.ReadAIMetadata(destPath);
+                var (destCreatedUtc, destModifiedUtc) = FileTimeService.ReadFileTimes(destPath);
+                
+                // 检查时间戳是否匹配
+                var createdTimeMatches = createdUtc == destCreatedUtc;
+                var modifiedTimeMatches = modifiedUtc == destModifiedUtc;
 
                 rows.Add(new ConversionReportRow
                 {
                     SourcePath = Path.GetFullPath(srcPath),
                     DestPath = Path.GetFullPath(destPath),
-                    SourceWidth = srcImg.Width,
-                    SourceHeight = srcImg.Height,
+                    SourceWidth = srcWidth,
+                    SourceHeight = srcHeight,
                     SourceFormat = srcFormat,
                     SourceParams = srcFormat == "PNG" ? "RGBA" : "RGB",
-                    DestWidth = destImg.Width,
-                    DestHeight = destImg.Height,
+                    DestWidth = destWidth,
+                    DestHeight = destHeight,
                     DestFormat = destFormat,
                     DestParams = $"Quality:{quality}",
-                    Success = isValidConversion && isTimeValid && isCreationTimeValid && isMetadataValid,
+                    Success = isValidConversion && isTimeValid && isCreationTimeValid && metadataVerified,
                     ErrorMessage = null,
                     AIPrompt = aiMetadata?.Prompt,
                     AINegativePrompt = aiMetadata?.NegativePrompt,
@@ -172,7 +198,21 @@ namespace ImageInfo.Services
                     MetadataWritten = metadataWritten,
                     MetadataVerified = metadataVerified,
                     SourceCreatedUtc = createdUtc,
-                    SourceModifiedUtc = modifiedUtc
+                    SourceModifiedUtc = modifiedUtc,
+                    // 新增：转换后文件的元数据
+                    DestFullAIMetadata = destAiMetadata?.FullInfo,
+                    DestFullAIMetadataExtractionMethod = destAiMetadata?.FullInfoExtractionMethod,
+                    DestAIPrompt = destAiMetadata?.Prompt,
+                    DestAINegativePrompt = destAiMetadata?.NegativePrompt,
+                    DestAIModel = destAiMetadata?.Model,
+                    DestAISeed = destAiMetadata?.Seed,
+                    DestAISampler = destAiMetadata?.Sampler,
+                    DestAIMetadata = destAiMetadata?.OtherInfo,
+                    // 新增：转换后文件的时间戳
+                    DestCreatedUtc = destCreatedUtc,
+                    DestModifiedUtc = destModifiedUtc,
+                    CreatedTimeMatches = createdTimeMatches,
+                    ModifiedTimeMatches = modifiedTimeMatches
                 });
             }
             catch (Exception ex)
@@ -191,8 +231,8 @@ namespace ImageInfo.Services
                 {
                     SourcePath = Path.GetFullPath(srcPath),
                     DestPath = Path.GetFullPath(destPath),
-                    SourceWidth = srcImg.Width,
-                    SourceHeight = srcImg.Height,
+                    SourceWidth = 0,  // 暂时设置为0
+                    SourceHeight = 0, // 暂时设置为0
                     SourceFormat = srcFormat,
                     SourceParams = srcFormat == "PNG" ? "RGBA" : "RGB",
                     DestWidth = null,

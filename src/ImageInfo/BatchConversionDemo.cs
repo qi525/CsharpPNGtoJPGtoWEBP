@@ -4,6 +4,7 @@ using System.IO;
 using System.Threading.Tasks;
 using ImageInfo.Services;
 using Spectre.Console;
+using ImageMagick;
 
 namespace ImageInfo
 {
@@ -142,17 +143,14 @@ namespace ImageInfo
             {
                 var filePath = Path.Combine(directory, $"sample_{i:D2}.png");
                 
-                // 使用 SixLabors.ImageSharp 创建示例图像
+                // 使用 Magick.NET 创建示例图像
                 try
                 {
-                    using (var img = new SixLabors.ImageSharp.Image<SixLabors.ImageSharp.PixelFormats.Rgba32>(
-                        64 + i * 32, 64 + i * 32))
+                    using (var img = new ImageMagick.MagickImage(ImageMagick.MagickColors.White, 64 + i * 32, 64 + i * 32))
                     {
-                        using (var stream = new System.IO.FileStream(filePath, System.IO.FileMode.Create))
-                        {
-                            img.Save(stream, new SixLabors.ImageSharp.Formats.Png.PngEncoder());
-                            files.Add(filePath);
-                        }
+                        img.Format = ImageMagick.MagickFormat.Png;
+                        img.Write(filePath);
+                        files.Add(filePath);
                     }
                 }
                 catch { }
