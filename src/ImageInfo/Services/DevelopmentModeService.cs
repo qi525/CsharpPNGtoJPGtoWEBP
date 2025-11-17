@@ -100,39 +100,6 @@ namespace ImageInfo.Services
         }
 
         /// <summary>
-        /// 读取模式：只扫描和读取元数据，不进行格式转换和写入
-        /// </summary>
-        public static void RunReadOnlyDiagnosisMode(string folder)
-        {
-            Console.WriteLine($"扫描文件夹: {folder}\n");
-            
-            var allFiles = FileScanner.GetImageFiles(folder).ToList();
-            var pngFiles = allFiles.Where(f => f.EndsWith(".png", StringComparison.OrdinalIgnoreCase)).ToList();
-            var jpgFiles = allFiles.Where(f => f.EndsWith(".jpg", StringComparison.OrdinalIgnoreCase) || f.EndsWith(".jpeg", StringComparison.OrdinalIgnoreCase)).ToList();
-            var webpFiles = allFiles.Where(f => f.EndsWith(".webp", StringComparison.OrdinalIgnoreCase)).ToList();
-
-            Console.WriteLine($"找到: PNG={pngFiles.Count} | JPG={jpgFiles.Count} | WEBP={webpFiles.Count}\n");
-
-            if (pngFiles.Count > 0)
-            {
-                Console.WriteLine("=== PNG 元数据读取 ===");
-                DisplayMetadataForFiles(pngFiles);
-            }
-
-            if (jpgFiles.Count > 0)
-            {
-                Console.WriteLine("\n=== JPG 元数据读取 ===");
-                DisplayMetadataForFiles(jpgFiles);
-            }
-
-            if (webpFiles.Count > 0)
-            {
-                Console.WriteLine("\n=== WEBP 元数据读取 ===");
-                DisplayMetadataForFiles(webpFiles);
-            }
-        }
-
-        /// <summary>
         /// 运行完整的元数据写入/读取/验证测试
         /// </summary>
         public static void RunFullMetadataTest()
@@ -209,27 +176,6 @@ namespace ImageInfo.Services
         }
 
         #region 私有辅助方法
-
-        private static void DisplayMetadataForFiles(List<string> files)
-        {
-            foreach (var file in files.Take(3))
-            {
-                Console.WriteLine($"\n文件: {Path.GetFileName(file)}");
-                var metadata = MetadataExtractors.ReadAIMetadata(file);
-                
-                Console.WriteLine($"  提取方法: {metadata.FullInfoExtractionMethod}");
-                Console.WriteLine($"  Prompt: {TruncateText(metadata.Prompt, 60)}");
-                Console.WriteLine($"  NegativePrompt: {TruncateText(metadata.NegativePrompt, 60)}");
-                Console.WriteLine($"  Model: {(string.IsNullOrEmpty(metadata.Model) ? "[空]" : metadata.Model)}");
-                Console.WriteLine($"  Seed: {(string.IsNullOrEmpty(metadata.Seed) ? "[空]" : metadata.Seed)}");
-                Console.WriteLine($"  Sampler: {(string.IsNullOrEmpty(metadata.Sampler) ? "[空]" : metadata.Sampler)}");
-                Console.WriteLine($"  OtherInfo: {TruncateText(metadata.OtherInfo, 80)}");
-                Console.WriteLine($"  FullInfo 长度: {metadata.FullInfo?.Length ?? 0} 字符");
-            }
-            
-            if (files.Count > 3)
-                Console.WriteLine($"\n... 还有 {files.Count - 3} 个文件 (省略显示)");
-        }
 
         private static void GenerateTestImages(string pngPath, string jpgPath, string webpPath)
         {

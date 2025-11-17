@@ -50,13 +50,6 @@ class Program
             return 0;
         }
 
-        if (devMode?.ToLowerInvariant() == "read")
-        {
-            Console.WriteLine("[开发模式-读取] 扫描所有图片并读取元数据...\n");
-            DevelopmentModeService.RunReadOnlyDiagnosisMode(folder);
-            return 0;
-        }
-
         if (devMode?.ToLowerInvariant() == "test")
         {
             Console.WriteLine("[开发模式-测试] 运行元数据写入/读取/验证测试...\n");
