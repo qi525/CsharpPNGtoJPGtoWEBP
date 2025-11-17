@@ -50,9 +50,9 @@ class Program
             return 0;
         }
 
-        if (devMode?.ToLowerInvariant() == "test")
+        if (devMode?.ToLowerInvariant() == "verify")
         {
-            Console.WriteLine("[开发模式-测试] 运行元数据写入/读取/验证测试...\n");
+            Console.WriteLine("[开发模式-检查方案一] 运行元数据写入/读取/验证测试...\n");
             DevelopmentModeService.RunFullMetadataTest();
             return 0;
         }
