@@ -34,7 +34,7 @@ namespace ImageInfo.Services
 
             using var image = new MagickImage(pngPath);
             image.Format = MagickFormat.Jpeg;
-            image.Quality = quality;
+            image.Quality = (uint)quality;
             image.BackgroundColor = MagickColor.FromRgba(255, 255, 255, 255);
             image.Write(outPath);
             return outPath;
@@ -55,7 +55,7 @@ namespace ImageInfo.Services
 
             using var image = new MagickImage(pngPath);
             image.Format = MagickFormat.WebP;
-            image.Quality = quality;
+            image.Quality = (uint)quality;
             image.Write(outPath);
             return outPath;
         }
@@ -75,7 +75,7 @@ namespace ImageInfo.Services
 
             using var image = new MagickImage(jpgPath);
             image.Format = MagickFormat.WebP;
-            image.Quality = quality;
+            image.Quality = (uint)quality;
             image.Write(outPath);
             return outPath;
         }
@@ -91,7 +91,7 @@ namespace ImageInfo.Services
 
             using var image = new MagickImage(webpPath);
             image.Format = MagickFormat.Jpeg;
-            image.Quality = quality;
+            image.Quality = (uint)quality;
             image.Write(outPath);
             return outPath;
         }

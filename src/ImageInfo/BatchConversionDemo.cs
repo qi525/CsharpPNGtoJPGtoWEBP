@@ -146,7 +146,7 @@ namespace ImageInfo
                 // 使用 Magick.NET 创建示例图像
                 try
                 {
-                    using (var img = new ImageMagick.MagickImage(ImageMagick.MagickColors.White, 64 + i * 32, 64 + i * 32))
+                    using (var img = new ImageMagick.MagickImage(ImageMagick.MagickColors.White, (uint)(64 + i * 32), (uint)(64 + i * 32)))
                     {
                         img.Format = ImageMagick.MagickFormat.Png;
                         img.Write(filePath);

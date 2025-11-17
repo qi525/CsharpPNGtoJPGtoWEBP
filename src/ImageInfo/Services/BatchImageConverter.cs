@@ -321,7 +321,7 @@ namespace ImageInfo.Services
             {
                 using var image = new MagickImage(pngPath);
                 image.Format = MagickFormat.WebP;
-                image.Quality = quality;
+                image.Quality = (uint)quality;
                 image.Write(outPath);
 
                 sw.Stop();
@@ -364,7 +364,7 @@ namespace ImageInfo.Services
             {
                 using var image = new MagickImage(jpegPath);
                 image.Format = MagickFormat.WebP;
-                image.Quality = quality;
+                image.Quality = (uint)quality;
                 image.Write(outPath);
 
                 sw.Stop();

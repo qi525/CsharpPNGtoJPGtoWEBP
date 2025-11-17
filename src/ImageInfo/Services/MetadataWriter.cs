@@ -77,12 +77,19 @@ namespace ImageInfo.Services
             {
                 using (var image = new MagickImage(pngPath))
                 {
-                    // 使用 Magick.NET 的 XMP Profile 来存储 PNG 元数据
-                    // PNG 通常使用 tEXt 块，但 Magick.NET 可以通过 XMP 或其他方式存储
-                    // 最稳定的方式是使用 SetAttribute 或自定义属性
+                    // PNG 元数据存储方案：使用 IPTC Profile
+                    // IPTC 是标准的元数据格式，大多数图片编辑器都支持
+                    var iptcProfile = image.GetIptcProfile();
+                    if (iptcProfile == null)
+                    {
+                        iptcProfile = new IptcProfile();
+                    }
                     
-                    // 方法1: 使用 SetAttribute（适用于所有格式）
-                    image.SetAttribute("png:text", $"{keyword}: {text}");
+                    // 使用 IptcTag.Keywords 或自定义标签来存储参数
+                    // 如果使用 Caption，就使用 IptcTag.Caption
+                    iptcProfile.SetValue(IptcTag.Caption, text);
+                    
+                    image.SetProfile(iptcProfile);
                     
                     image.Format = MagickFormat.Png;
                     image.Write(pngPath);

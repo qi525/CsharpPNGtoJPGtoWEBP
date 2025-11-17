@@ -61,7 +61,7 @@ namespace ImageInfo.Tests
             using (var image = new MagickImage(pngPath))
             {
                 image.Format = MagickFormat.Jpeg;
-                image.Quality = 95;
+                image.Quality = 95u;
                 image.Write(jpegPath);
             }
             return jpegPath;
@@ -76,7 +76,7 @@ namespace ImageInfo.Tests
             using (var image = new MagickImage(pngPath))
             {
                 image.Format = MagickFormat.WebP;
-                image.Quality = 80;
+                image.Quality = 80u;
                 image.Write(webpPath);
             }
             return webpPath;

@@ -192,7 +192,7 @@ namespace ImageInfo.Services
                 using (var img = new MagickImage(MagickColors.Gray, 100, 100))
                 {
                     img.Format = MagickFormat.Jpeg;
-                    img.Quality = 95;
+                    img.Quality = 95u;
                     img.Write(jpgPath);
                 }
                 Console.WriteLine($"  ✓ JPG已生成: {Path.GetFileName(jpgPath)}");
@@ -200,7 +200,7 @@ namespace ImageInfo.Services
                 using (var img = new MagickImage(MagickColors.Gray, 100, 100))
                 {
                     img.Format = MagickFormat.WebP;
-                    img.Quality = 80;
+                    img.Quality = 80u;
                     img.Write(webpPath);
                 }
                 Console.WriteLine($"  ✓ WebP已生成: {Path.GetFileName(webpPath)}\n");

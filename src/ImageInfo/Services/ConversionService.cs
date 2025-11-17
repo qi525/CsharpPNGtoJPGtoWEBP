@@ -121,8 +121,8 @@ namespace ImageInfo.Services
             try
             {
                 using var srcImg = new MagickImage(srcPath);
-                srcWidth = srcImg.Width;
-                srcHeight = srcImg.Height;
+                srcWidth = (int)srcImg.Width;
+                srcHeight = (int)srcImg.Height;
             }
             catch
             {
@@ -148,8 +148,8 @@ namespace ImageInfo.Services
                 int destWidth = 0, destHeight = 0;
                 using (var destImg = new MagickImage(destPath))
                 {
-                    destWidth = destImg.Width;
-                    destHeight = destImg.Height;
+                    destWidth = (int)destImg.Width;
+                    destHeight = (int)destImg.Height;
                 }
                 // 至此 destImg 已被释放，文件句柄已关闭
                 

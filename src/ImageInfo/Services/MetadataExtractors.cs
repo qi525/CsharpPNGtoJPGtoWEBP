@@ -118,6 +118,33 @@ namespace ImageInfo.Services
 
             try
             {
+                // 首先尝试用 Magick.NET 直接读取 IPTC Profile（最可靠）
+                using (var image = new MagickImage(imagePath))
+                {
+                    var iptcProfile = image.GetIptcProfile();
+                    if (iptcProfile != null)
+                    {
+                        // 尝试读取 Caption 标签（IptcTag.Caption 是标准的元数据存储位置）
+                        try
+                        {
+                            var caption = iptcProfile.GetValue(IptcTag.Caption);
+                            if (caption != null)
+                            {
+                                string fullInfo = caption.ToString() ?? string.Empty;
+                                if (!string.IsNullOrWhiteSpace(fullInfo))
+                                {
+                                    metadata.FullInfo = fullInfo;
+                                    metadata.FullInfoExtractionMethod = "PNG.IPTC.Caption";
+                                    AIParameterParser.ParseFullInfoIntoFields(fullInfo, metadata);
+                                    return metadata;
+                                }
+                            }
+                        }
+                        catch { }
+                    }
+                }
+
+                // 回退到 MetadataExtractor 库
                 var directories = ImageMetadataReader.ReadMetadata(imagePath);
 
                 // 优先从所有目录中查找完整参数块
@@ -569,6 +596,31 @@ namespace ImageInfo.Services
         {
             foreach (var dir in directories)
             {
+                // 优先从 IPTC 的 Caption 标签获取完整信息
+                // IPTC Caption 标签通常用于存储长文本元数据
+                if (dir.GetType().Name == "IptcDirectory")
+                {
+                    foreach (var tag in dir.Tags)
+                    {
+                        var desc = tag?.Description;
+                        if (string.IsNullOrWhiteSpace(desc)) continue;
+                        
+                        // 检查是否包含 Caption 或相关信息
+                        if (desc.IndexOf("Caption", StringComparison.OrdinalIgnoreCase) >= 0)
+                        {
+                            // 提取 Caption 值（格式通常是 "Caption: [values]" 或 "[值]"）
+                            var value = ExtractIptcValue(desc);
+                            if (!string.IsNullOrWhiteSpace(value) && 
+                                (value.IndexOf("parameters", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                                 value.IndexOf("steps:", StringComparison.OrdinalIgnoreCase) >= 0))
+                            {
+                                return value;
+                            }
+                        }
+                    }
+                }
+                
+                // 再从其他目录的通用标签中搜索
                 foreach (var tag in dir.Tags)
                 {
                     var desc = tag?.Description;
@@ -584,6 +636,21 @@ namespace ImageInfo.Services
             }
 
             return null;
+        }
+
+        /// <summary>
+        /// 从 IPTC 标签描述中提取实际值
+        /// </summary>
+        private static string ExtractIptcValue(string description)
+        {
+            // IPTC 标签通常的格式是 "TagName: value" 或 "[values]"
+            if (description.Contains(": "))
+            {
+                var parts = description.Split(new[] { ": " }, 2, StringSplitOptions.None);
+                return parts.Length > 1 ? parts[1].Trim() : description;
+            }
+            
+            return description;
         }
 
         /// <summary>

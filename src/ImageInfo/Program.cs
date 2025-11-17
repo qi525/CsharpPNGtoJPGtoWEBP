@@ -52,8 +52,8 @@ class Program
 
         if (devMode?.ToLowerInvariant() == "verify")
         {
-            Console.WriteLine("[开发模式-检查方案一] 运行元数据写入/读取/验证测试...\n");
-            DevelopmentModeService.RunFullMetadataTest();
+            Console.WriteLine("[检查方案一] 运行三种转换模式，每种模式自动打开一份报告...\n");
+            DevelopmentModeService.RunFullConversionMode(folder);
             return 0;
         }
 
