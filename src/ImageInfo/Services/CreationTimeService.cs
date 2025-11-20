@@ -5,22 +5,12 @@ using System.IO;
 namespace ImageInfo.Services
 {
     /// <summary>
-    /// 文件创建时间服务。
-    /// 在 Windows 上使用 P/Invoke 调用 SetFileTime API 修改文件创建时间（ctime）。
+    /// 文件创建时间服务（跨平台支持）。
     /// </summary>
     public static class CreationTimeService
     {
         /// <summary>
-        /// 设置文件的创建时间。
-        /// 
-        /// 实现方式：
-        /// - Windows: 使用 P/Invoke 调用 SetFileTime() 修改 ctime
-        /// - 其他平台: 使用标准 File.SetCreationTime()（可能无效）
-        /// 
-        /// 工作流：
-        /// 1. 验证文件存在
-        /// 2. 调用 Windows SetFileTime API 或标准方法
-        /// 3. 成功返回 true，异常返回 false
+        /// 设置文件的创建时间（Windows 优化，其他平台使用标准方法）。
         /// </summary>
         /// <param name="filePath">文件路径</param>
         /// <param name="creationTime">要设置的创建时间</param>
@@ -74,9 +64,7 @@ namespace ImageInfo.Services
         }
 
         /// <summary>
-        /// 验证文件创建时间是否已正确设置。
-        /// 
-        /// 允许误差：5秒（文件系统精度问题）
+        /// 验证文件创建时间是否正确设置（容差 ±5 秒）。
         /// </summary>
         /// <param name="filePath">文件路径</param>
         /// <param name="expectedTime">期望的创建时间</param>
@@ -102,11 +90,8 @@ namespace ImageInfo.Services
             }
         }
 
-        // ======================== 不再使用 P/Invoke，改用 C# 原生 File.SetCreationTime ========================
-        // 原生方法更可靠，避免文件锁定问题
-
         /// <summary>
-        /// Windows 平台专用：使用 SetFileTime API 修改文件创建时间。
+        /// Windows 平台专用实现（使用原生 File.SetCreationTime）。
         /// </summary>
         private static bool SetCreationTimeWindows(string filePath, DateTime creationTime)
         {

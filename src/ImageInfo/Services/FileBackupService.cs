@@ -10,17 +10,7 @@ namespace ImageInfo.Services
     public static class FileBackupService
     {
         /// <summary>
-        /// 当转换失败时，将源文件复制到目标目录作为备份。
-        /// 
-        /// 工作流：
-        /// 1. 验证源文件存在
-        /// 2. 确保目标目录存在（不存在则创建）
-        /// 3. 复制源文件到目标位置
-        /// 4. 返回备份文件路径
-        /// 
-        /// 异常处理：
-        /// - 如果复制失败，记录错误信息但不中断主流程
-        /// - 返回 null 表示备份失败
+        /// 将源文件复制到目标目录作为备份。失败返回 null，不中断流程。
         /// </summary>
         /// <param name="sourceFilePath">源文件路径</param>
         /// <param name="destDirectoryPath">目标目录路径</param>
@@ -71,11 +61,7 @@ namespace ImageInfo.Services
         }
 
         /// <summary>
-        /// 验证备份文件是否成功复制。
-        /// 
-        /// 检查：
-        /// 1. 备份文件是否存在
-        /// 2. 源文件和备份文件的大小是否一致
+        /// 验证备份文件是否成功复制（检查存在性和大小）。
         /// </summary>
         /// <param name="sourceFilePath">原始源文件路径</param>
         /// <param name="backupFilePath">备份文件路径</param>

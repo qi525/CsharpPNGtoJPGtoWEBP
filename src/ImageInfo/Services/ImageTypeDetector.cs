@@ -4,14 +4,10 @@ using System.IO;
 namespace ImageInfo.Services
 {
     /// <summary>
-    /// 图片类型检测服务。
-    /// 根据文件扩展名和 Magic Number（文件头）识别图片格式。
+    /// 图片类型检测（扩展名+Magic Number）。
     /// </summary>
     public static class ImageTypeDetector
     {
-        /// <summary>
-        /// 支持的图片格式枚举。
-        /// </summary>
         public enum ImageFormat
         {
             Unknown,
@@ -21,16 +17,7 @@ namespace ImageInfo.Services
         }
 
         /// <summary>
-        /// 根据文件路径检测图片类型。
-        /// 
-        /// 检测顺序：
-        /// 1. 先检查文件扩展名（快速路径）
-        /// 2. 如果扩展名不可靠，读取文件头 Magic Number 进行确认
-        /// 
-        /// Magic Number 参考：
-        /// - PNG:  0x89 0x50 0x4E 0x47 (89 50 4E 47)
-        /// - JPEG: 0xFF 0xD8 ... 0xFF 0xD9
-        /// - WebP: 52 49 46 46 ... 57 45 42 50 ("RIFF" ... "WEBP")
+        /// 检测图片类型（先扩展名后Magic Number）。
         /// </summary>
         /// <param name="filePath">图片文件路径</param>
         /// <returns>识别的图片格式</returns>
@@ -39,30 +26,21 @@ namespace ImageInfo.Services
             if (string.IsNullOrEmpty(filePath) || !File.Exists(filePath))
                 return ImageFormat.Unknown;
 
-            // 【步骤 1】基于扩展名的快速检测
             string extension = Path.GetExtension(filePath).ToLowerInvariant().TrimStart('.');
             ImageFormat formatFromExt = GetFormatFromExtension(extension);
-
-            // 【步骤 2】通过 Magic Number 验证（可选，提高准确性）
             try
             {
-                ImageFormat formatFromMagic = VerifyByMagicNumber(filePath);
-                
-                // 如果 Magic Number 检测成功，使用其结果（优先级更高）
+                var formatFromMagic = VerifyByMagicNumber(filePath);
                 if (formatFromMagic != ImageFormat.Unknown)
                     return formatFromMagic;
             }
-            catch
-            {
-                // Magic Number 读取失败时，回退到扩展名结果
-            }
+            catch { }
 
             return formatFromExt;
         }
 
         /// <summary>
-        /// 根据扩展名确定图片格式。
-        /// 快速路径，不涉及磁盘 I/O。
+        /// 根据扩展名确定图片格式（快速路径）。
         /// </summary>
         private static ImageFormat GetFormatFromExtension(string extension)
         {
@@ -76,8 +54,7 @@ namespace ImageInfo.Services
         }
 
         /// <summary>
-        /// 通过文件头 Magic Number 验证图片格式。
-        /// 读取文件前 12 字节进行检测。
+        /// 通过文件头 Magic Number 验证图片格式（前 12 字节）。
         /// </summary>
         private static ImageFormat VerifyByMagicNumber(string filePath)
         {
