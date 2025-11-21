@@ -12,4 +12,7 @@
     <PackageReference Include="Spectre.Console" Version="0.54.0" />
     <PackageReference Include="Magick.NET-Q16-AnyCPU" Version="14.9.1" />
   </ItemGroup>
+  <ItemGroup>
+    <None Update="Resources\**\*" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
 </Project>

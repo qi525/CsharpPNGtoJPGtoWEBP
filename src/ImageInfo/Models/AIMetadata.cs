@@ -15,6 +15,9 @@ namespace ImageInfo.Models
         /// <summary>使用的 AI 模型/检查点名称。</summary>
         public string? Model { get; set; }
 
+        /// <summary>模型的哈希值。</summary>
+        public string? ModelHash { get; set; }
+
         /// <summary>生成使用的随机种子。</summary>
         public string? Seed { get; set; }
 

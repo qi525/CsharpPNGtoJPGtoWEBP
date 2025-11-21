@@ -28,11 +28,11 @@ class Program
             return args[0];
 
         if (!string.IsNullOrEmpty(Environment.GetEnvironmentVariable("IMAGEINFO_DEV")))
-            return @"C:\Users\SNOW\Desktop\test";
+            return @"C:\stable-diffusion-webui\outputs\txt2img-images";
 
-        Console.WriteLine("请输入要扫描和转换的根文件夹路径（按回车使用默认: C:\\Users\\SNOW\\Desktop\\test）：");
+        Console.WriteLine("请输入要扫描和转换的根文件夹路径（按回车使用默认: C:\\stable-diffusion-webui\\outputs\\txt2img-images）：");
         var input = Console.ReadLine();
-        return string.IsNullOrWhiteSpace(input) ? @"C:\Users\SNOW\Desktop\test" : input.Trim();
+        return string.IsNullOrWhiteSpace(input) ? @"C:\stable-diffusion-webui\outputs\txt2img-images" : input.Trim();
     }
 
     private static bool IsDevelopmentMode(out string? devMode)
@@ -45,8 +45,15 @@ class Program
     {
         if (devMode?.ToLowerInvariant() == "scan")
         {
-            Console.WriteLine("[开发模式-扫描] 读取元数据并生成 Excel 报告...\n");
+            Console.WriteLine("[开发模式-只读模式1] 不清洗正向关键词\n");
             DevelopmentModeService.RunScanMode(folder);
+            return 0;
+        }
+
+        if (devMode?.ToLowerInvariant() == "scan2")
+        {
+            Console.WriteLine("[开发模式-只读模式2] 清洗正向关键词\n");
+            DevelopmentModeService.RunScanMode2(folder);
             return 0;
         }
 

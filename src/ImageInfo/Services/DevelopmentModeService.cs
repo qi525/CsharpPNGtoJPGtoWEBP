@@ -16,11 +16,12 @@ namespace ImageInfo.Services
     public static class DevelopmentModeService
     {
         /// <summary>
-        /// 扫描模式：扫描文件夹，读取所有图片的元数据，生成 Excel 报告
+        /// 扫描模式1：不清洗正向关键词的只读模式
         /// </summary>
         public static void RunScanMode(string folder)
         {
-            Console.WriteLine($"扫描模式：读取元数据并生成 Excel 报告\n");
+            var startTime = DateTime.Now;
+            Console.WriteLine($"[只读模式1] 不清洗正向关键词\n");
             Console.WriteLine($"扫描文件夹: {folder}\n");
             
             var allFiles = FileScanner.GetImageFiles(folder).ToList();
@@ -36,41 +37,50 @@ namespace ImageInfo.Services
             Console.WriteLine("[步骤1] 读取元数据...");
             var metadataList = new List<MetadataRecord>();
             int processed = 0;
+            object lockObj = new object();
 
-            foreach (var filePath in allFiles)
+            System.Threading.Tasks.Parallel.ForEach(allFiles, new System.Threading.Tasks.ParallelOptions 
+            { 
+                MaxDegreeOfParallelism = Environment.ProcessorCount 
+            }, filePath =>
             {
                 try
                 {
                     var metadata = MetadataExtractors.ReadAIMetadata(filePath);
-                    metadataList.Add(new MetadataRecord
+                    lock (lockObj)
                     {
-                        FileName = Path.GetFileName(filePath),
-                        FilePath = filePath,
-                        FileFormat = Path.GetExtension(filePath).ToUpperInvariant().TrimStart('.'),
-                        Prompt = metadata.Prompt ?? string.Empty,
-                        NegativePrompt = metadata.NegativePrompt ?? string.Empty,
-                        Model = metadata.Model ?? string.Empty,
-                        Seed = metadata.Seed ?? string.Empty,
-                        Sampler = metadata.Sampler ?? string.Empty,
-                        OtherInfo = metadata.OtherInfo ?? string.Empty,
-                        FullInfo = metadata.FullInfo ?? string.Empty,
-                        ExtractionMethod = metadata.FullInfoExtractionMethod ?? string.Empty
-                    });
+                        metadataList.Add(new MetadataRecord
+                        {
+                            FileName = Path.GetFileName(filePath),
+                            FilePath = filePath,
+                            FileFormat = Path.GetExtension(filePath).ToUpperInvariant().TrimStart('.'),
+                            Prompt = metadata.Prompt ?? string.Empty,
+                            NegativePrompt = metadata.NegativePrompt ?? string.Empty,
+                            Model = metadata.Model ?? string.Empty,
+                            ModelHash = metadata.ModelHash ?? string.Empty,
+                            Seed = metadata.Seed ?? string.Empty,
+                            Sampler = metadata.Sampler ?? string.Empty,
+                            OtherInfo = metadata.OtherInfo ?? string.Empty,
+                            FullInfo = metadata.FullInfo ?? string.Empty,
+                            ExtractionMethod = metadata.FullInfoExtractionMethod ?? string.Empty,
+                            CorePositivePrompt = string.Empty
+                        });
 
-                    processed++;
-                    if (processed % 10 == 0)
-                        Console.Write($"已处理: {processed}/{allFiles.Count}\r");
+                        processed++;
+                        if (processed % 100 == 0)
+                            Console.Write($"已处理: {processed}/{allFiles.Count}\r");
+                    }
                 }
                 catch (Exception ex)
                 {
                     Console.WriteLine($"警告: 读取 {Path.GetFileName(filePath)} 时出错: {ex.Message}");
                 }
-            }
+            });
             Console.WriteLine($"已处理: {processed}/{allFiles.Count}     \n");
 
             // 生成 Excel 报告
             Console.WriteLine("[步骤2] 生成 Excel 报告...");
-            string reportPath = GenerateExcelReport(metadataList, folder);
+            string reportPath = GenerateExcelReport(metadataList, folder, scanMode: 1);
 
             if (!string.IsNullOrEmpty(reportPath) && File.Exists(reportPath))
             {
@@ -97,6 +107,111 @@ namespace ImageInfo.Services
             {
                 Console.WriteLine("✗ 生成报告失败");
             }
+
+            var endTime = DateTime.Now;
+            var elapsed = endTime - startTime;
+            Console.WriteLine($"\n耗时: {elapsed.TotalSeconds:F2} 秒");
+        }
+
+        /// <summary>
+        /// 扫描模式2：清洗正向关键词的只读模式
+        /// </summary>
+        public static void RunScanMode2(string folder)
+        {
+            var startTime = DateTime.Now;
+            Console.WriteLine($"[只读模式2] 清洗正向关键词\n");
+            Console.WriteLine($"扫描文件夹: {folder}\n");
+            
+            var allFiles = FileScanner.GetImageFiles(folder).ToList();
+            Console.WriteLine($"找到 {allFiles.Count} 个图片文件\n");
+
+            if (allFiles.Count == 0)
+            {
+                Console.WriteLine("未找到任何图片文件");
+                return;
+            }
+
+            // 收集元数据
+            Console.WriteLine("[步骤1] 读取元数据...");
+            var metadataList = new List<MetadataRecord>();
+            int processed = 0;
+            object lockObj = new object();
+
+            System.Threading.Tasks.Parallel.ForEach(allFiles, new System.Threading.Tasks.ParallelOptions 
+            { 
+                MaxDegreeOfParallelism = Environment.ProcessorCount 
+            }, filePath =>
+            {
+                try
+                {
+                    var metadata = MetadataExtractors.ReadAIMetadata(filePath);
+                    var prompt = metadata.Prompt ?? string.Empty;
+                    var corePrompt = PromptCleanerService.CleanPositivePrompt(prompt);
+                    
+                    lock (lockObj)
+                    {
+                        metadataList.Add(new MetadataRecord
+                        {
+                            FileName = Path.GetFileName(filePath),
+                            FilePath = filePath,
+                            FileFormat = Path.GetExtension(filePath).ToUpperInvariant().TrimStart('.'),
+                            Prompt = prompt,
+                            NegativePrompt = metadata.NegativePrompt ?? string.Empty,
+                            Model = metadata.Model ?? string.Empty,
+                            ModelHash = metadata.ModelHash ?? string.Empty,
+                            Seed = metadata.Seed ?? string.Empty,
+                            Sampler = metadata.Sampler ?? string.Empty,
+                            OtherInfo = metadata.OtherInfo ?? string.Empty,
+                            FullInfo = metadata.FullInfo ?? string.Empty,
+                            ExtractionMethod = metadata.FullInfoExtractionMethod ?? string.Empty,
+                            CorePositivePrompt = corePrompt
+                        });
+
+                        processed++;
+                        if (processed % 100 == 0)
+                            Console.Write($"已处理: {processed}/{allFiles.Count}\r");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"警告: 读取 {Path.GetFileName(filePath)} 时出错: {ex.Message}");
+                }
+            });
+            Console.WriteLine($"已处理: {processed}/{allFiles.Count}     \n");
+
+            // 生成 Excel 报告
+            Console.WriteLine("[步骤2] 生成 Excel 报告...");
+            string reportPath = GenerateExcelReport(metadataList, folder, scanMode: 2);
+
+            if (!string.IsNullOrEmpty(reportPath) && File.Exists(reportPath))
+            {
+                Console.WriteLine($"✓ 报告已生成: {reportPath}\n");
+                
+                // 自动打开
+                Console.WriteLine("[步骤3] 自动打开报告...");
+                try
+                {
+                    System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+                    {
+                        FileName = reportPath,
+                        UseShellExecute = true
+                    });
+                    Console.WriteLine("✓ 报告已打开");
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"⚠ 无法自动打开报告: {ex.Message}");
+                    Console.WriteLine($"请手动打开: {reportPath}");
+                }
+            }
+            else
+            {
+                Console.WriteLine("✗ 生成报告失败");
+            }
+
+            var endTime = DateTime.Now;
+            var elapsed = endTime - startTime;
+            Console.WriteLine($"\n耗时: {elapsed.TotalSeconds:F2} 秒");
         }
 
         /// <summary>
@@ -341,19 +456,23 @@ namespace ImageInfo.Services
             return "失败";
         }
 
-        private static string GenerateExcelReport(List<MetadataRecord> records, string scanFolder)
+        private static string GenerateExcelReport(List<MetadataRecord> records, string scanFolder, int scanMode = 1)
         {
             try
             {
-                string reportName = $"metadata_scan_{DateTime.Now:yyyy-MM-dd_HH-mm-ss}.xlsx";
+                string modeLabel = scanMode == 2 ? "Mode2_Cleaned" : "Mode1_NoClean";
+                string reportName = $"metadata_scan_{modeLabel}_{DateTime.Now:yyyy-MM-dd_HH-mm-ss}.xlsx";
                 string reportPath = Path.Combine(Path.GetTempPath(), reportName);
 
                 using (var workbook = new XLWorkbook())
                 {
                     var worksheet = workbook.Worksheets.Add("元数据扫描报告");
 
-                    // 设置列头
-                    var headers = new[] { "文件名", "路径", "格式", "Prompt", "NegativePrompt", "Model", "Seed", "Sampler", "其他信息", "完整信息", "提取方法" };
+                    // 根据模式设置列头
+                    var headers = scanMode == 2
+                        ? new[] { "文件名", "路径", "格式", "Prompt", "NegativePrompt", "Model", "ModelHash", "Seed", "Sampler", "其他信息", "完整信息", "提取方法", "正向词核心词提取" }
+                        : new[] { "文件名", "路径", "格式", "Prompt", "NegativePrompt", "Model", "ModelHash", "Seed", "Sampler", "其他信息", "完整信息", "提取方法" };
+                    
                     for (int i = 0; i < headers.Length; i++)
                     {
                         worksheet.Cell(1, i + 1).Value = headers[i];
@@ -371,11 +490,18 @@ namespace ImageInfo.Services
                         worksheet.Cell(row, 4).Value = record.Prompt;
                         worksheet.Cell(row, 5).Value = record.NegativePrompt;
                         worksheet.Cell(row, 6).Value = record.Model;
-                        worksheet.Cell(row, 7).Value = record.Seed;
-                        worksheet.Cell(row, 8).Value = record.Sampler;
-                        worksheet.Cell(row, 9).Value = record.OtherInfo;
-                        worksheet.Cell(row, 10).Value = record.FullInfo;
-                        worksheet.Cell(row, 11).Value = record.ExtractionMethod;
+                        worksheet.Cell(row, 7).Value = record.ModelHash;
+                        worksheet.Cell(row, 8).Value = record.Seed;
+                        worksheet.Cell(row, 9).Value = record.Sampler;
+                        worksheet.Cell(row, 10).Value = record.OtherInfo;
+                        worksheet.Cell(row, 11).Value = record.FullInfo;
+                        worksheet.Cell(row, 12).Value = record.ExtractionMethod;
+                        
+                        if (scanMode == 2)
+                        {
+                            worksheet.Cell(row, 13).Value = record.CorePositivePrompt;
+                        }
+                        
                         row++;
                     }
 
@@ -383,10 +509,12 @@ namespace ImageInfo.Services
                     worksheet.Column(2).Width = 15;  // 路径列宽度
                     worksheet.Column(4).Width = 15;  // Prompt 列
                     worksheet.Column(10).Width = 15; // 完整信息列
+                    if (scanMode == 2)
+                        worksheet.Column(12).Width = 15; // 核心词列
 
                     // 添加摘要页
                     var summary = workbook.Worksheets.Add("摘要");
-                    summary.Cell(1, 1).Value = "扫描摘要";
+                    summary.Cell(1, 1).Value = scanMode == 2 ? "扫描摘要 (已清洗)" : "扫描摘要";
                     summary.Cell(1, 1).Style.Font.Bold = true;
                     summary.Cell(1, 1).Style.Font.FontSize = 14;
 
@@ -453,10 +581,12 @@ namespace ImageInfo.Services
         public string Prompt { get; set; } = string.Empty;
         public string NegativePrompt { get; set; } = string.Empty;
         public string Model { get; set; } = string.Empty;
+        public string ModelHash { get; set; } = string.Empty;
         public string Seed { get; set; } = string.Empty;
         public string Sampler { get; set; } = string.Empty;
         public string OtherInfo { get; set; } = string.Empty;
         public string FullInfo { get; set; } = string.Empty;
         public string ExtractionMethod { get; set; } = string.Empty;
+        public string CorePositivePrompt { get; set; } = string.Empty;
     }
 }

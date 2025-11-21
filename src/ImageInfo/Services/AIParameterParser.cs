@@ -424,6 +424,11 @@ namespace ImageInfo.Services
                         metadata.Model = value;
                     break;
 
+                case "model hash" or "model_hash":
+                    if (string.IsNullOrEmpty(metadata.ModelHash))
+                        metadata.ModelHash = value;
+                    break;
+
                 case "seed":
                     if (string.IsNullOrEmpty(metadata.Seed))
                         metadata.Seed = value;
