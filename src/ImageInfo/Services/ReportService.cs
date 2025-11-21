@@ -61,8 +61,8 @@ namespace ImageInfo.Services
                 ws.Cell(1, i + 1).Value = headers[i];
 
             // 设置列宽和格式
-            ws.Column(1).Width = 30;   // 源文件路径
-            ws.Column(2).Width = 30;   // 目标文件路径
+            ws.Column(1).Width = 15;   // 源文件路径
+            ws.Column(2).Width = 15;   // 目标文件路径
             ws.Column(3).Width = 10;   // 源宽度
             ws.Column(4).Width = 10;   // 源高度
             ws.Column(5).Width = 10;   // 源格式
@@ -70,32 +70,32 @@ namespace ImageInfo.Services
             ws.Column(7).Width = 10;   // 目标高度
             ws.Column(8).Width = 10;   // 目标格式
             ws.Column(9).Width = 10;   // 转换成功
-            ws.Column(10).Width = 20;  // 错误信息
-            ws.Column(11).Width = 60;  // 源完整AI元数据
+            ws.Column(10).Width = 15;  // 错误信息
+            ws.Column(11).Width = 15;  // 源完整AI元数据
             ws.Column(12).Width = 15;  // 源元数据提取方法
-            ws.Column(13).Width = 40;  // 源Prompt
-            ws.Column(14).Width = 40;  // 源NegativePrompt
-            ws.Column(15).Width = 20;  // 源模型
+            ws.Column(13).Width = 15;  // 源Prompt
+            ws.Column(14).Width = 15;  // 源NegativePrompt
+            ws.Column(15).Width = 15;  // 源模型
             ws.Column(16).Width = 15;  // 源种子
             ws.Column(17).Width = 15;  // 源采样器
-            ws.Column(18).Width = 20;  // 源其他信息
-            ws.Column(19).Width = 60;  // 转换后完整AI元数据
+            ws.Column(18).Width = 15;  // 源其他信息
+            ws.Column(19).Width = 15;  // 转换后完整AI元数据
             ws.Column(20).Width = 15;  // 转换后元数据提取方法
-            ws.Column(21).Width = 40;  // 转换后Prompt
-            ws.Column(22).Width = 40;  // 转换后NegativePrompt
-            ws.Column(23).Width = 20;  // 转换后模型
+            ws.Column(21).Width = 15;  // 转换后Prompt
+            ws.Column(22).Width = 15;  // 转换后NegativePrompt
+            ws.Column(23).Width = 15;  // 转换后模型
             ws.Column(24).Width = 15;  // 转换后种子
             ws.Column(25).Width = 15;  // 转换后采样器
-            ws.Column(26).Width = 20;  // 转换后其他信息
+            ws.Column(26).Width = 15;  // 转换后其他信息
             ws.Column(27).Width = 12;  // 元数据已写入
             ws.Column(28).Width = 12;  // 元数据已验证
-            ws.Column(29).Width = 20;  // 源创建时间
-            ws.Column(30).Width = 20;  // 源修改时间
-            ws.Column(31).Width = 20;  // 转换后创建时间
-            ws.Column(32).Width = 20;  // 转换后修改时间
+            ws.Column(29).Width = 15;  // 源创建时间
+            ws.Column(30).Width = 15;  // 源修改时间
+            ws.Column(31).Width = 15;  // 转换后创建时间
+            ws.Column(32).Width = 15;  // 转换后修改时间
             ws.Column(33).Width = 12;  // 创建时间一致性
             ws.Column(34).Width = 12;  // 修改时间一致性
-            ws.Column(35).Width = 20;  // 报告时间戳
+            ws.Column(35).Width = 15;  // 报告时间戳
 
             // 设置表头样式（粗体、背景色）
             for (int i = 1; i <= headers.Length; i++)
@@ -162,17 +162,17 @@ namespace ImageInfo.Services
             }
 
             // 设置列宽并启用文本换行
-            ws.Column(1).Width = 40;   // 源文件路径
-            ws.Column(2).Width = 40;   // 目标文件路径
-            ws.Column(10).Width = 50;  // 错误信息
-            ws.Column(11).Width = 80;  // 源完整AI元数据
-            ws.Column(12).Width = 25;  // 源元数据提取方法
-            ws.Column(13).Width = 80;  // 源Prompt
-            ws.Column(14).Width = 80;  // 源负Prompt
-            ws.Column(19).Width = 80;  // 转换后完整AI元数据
-            ws.Column(20).Width = 25;  // 转换后元数据提取方法
-            ws.Column(21).Width = 80;  // 转换后Prompt
-            ws.Column(22).Width = 80;  // 转换后负Prompt
+            ws.Column(1).Width = 15;   // 源文件路径
+            ws.Column(2).Width = 15;   // 目标文件路径
+            ws.Column(10).Width = 15;  // 错误信息
+            ws.Column(11).Width = 15;  // 源完整AI元数据
+            ws.Column(12).Width = 15;  // 源元数据提取方法
+            ws.Column(13).Width = 15;  // 源Prompt
+            ws.Column(14).Width = 15;  // 源负Prompt
+            ws.Column(19).Width = 15;  // 转换后完整AI元数据
+            ws.Column(20).Width = 15;  // 转换后元数据提取方法
+            ws.Column(21).Width = 15;  // 转换后Prompt
+            ws.Column(22).Width = 15;  // 转换后负Prompt
 
             // 启用所有包含文本的单元格的换行，并设置对齐方式
             for (int col = 1; col <= headers.Length; col++)

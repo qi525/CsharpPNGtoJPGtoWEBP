@@ -381,9 +381,9 @@ namespace ImageInfo.Services
 
                     // 调整列宽
                     worksheet.Columns().AdjustToContents();
-                    worksheet.Column(2).Width = 50;  // 路径列宽度
-                    worksheet.Column(4).Width = 30;  // Prompt 列
-                    worksheet.Column(10).Width = 40; // 完整信息列
+                    worksheet.Column(2).Width = 15;  // 路径列宽度
+                    worksheet.Column(4).Width = 15;  // Prompt 列
+                    worksheet.Column(10).Width = 15; // 完整信息列
 
                     // 添加摘要页
                     var summary = workbook.Worksheets.Add("摘要");
