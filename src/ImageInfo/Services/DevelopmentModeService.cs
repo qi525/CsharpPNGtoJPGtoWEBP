@@ -104,7 +104,7 @@ namespace ImageInfo.Services
         /// </summary>
         public static void RunFullMetadataTest()
         {
-            string testDir = @"C:\Users\10374\Desktop\test\";
+            string testDir = @"C:\Users\SNOW\Desktop\test\";
             if (!Directory.Exists(testDir))
                 Directory.CreateDirectory(testDir);
 

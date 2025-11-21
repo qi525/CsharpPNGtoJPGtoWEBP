@@ -28,11 +28,11 @@ class Program
             return args[0];
 
         if (!string.IsNullOrEmpty(Environment.GetEnvironmentVariable("IMAGEINFO_DEV")))
-            return @"C:\Users\10374\Desktop\test";
+            return @"C:\Users\SNOW\Desktop\test";
 
-        Console.WriteLine("请输入要扫描和转换的根文件夹路径（按回车使用默认: C:\\Users\\10374\\Desktop\\test）：");
+        Console.WriteLine("请输入要扫描和转换的根文件夹路径（按回车使用默认: C:\\Users\\SNOW\\Desktop\\test）：");
         var input = Console.ReadLine();
-        return string.IsNullOrWhiteSpace(input) ? @"C:\Users\10374\Desktop\test" : input.Trim();
+        return string.IsNullOrWhiteSpace(input) ? @"C:\Users\SNOW\Desktop\test" : input.Trim();
     }
 
     private static bool IsDevelopmentMode(out string? devMode)
