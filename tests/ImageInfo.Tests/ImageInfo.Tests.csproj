@@ -16,6 +16,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\..\src\ImageInfo\ImageInfo.csproj" />
+    <ProjectReference Include="..\..\src\ImageInfo\ImageInfo.csproj" />
   </ItemGroup>
 </Project>

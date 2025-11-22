@@ -112,11 +112,11 @@ namespace ImageInfo.Tests
                 // 成功标记
                 Console.WriteLine("✓ JPEG 元数据写入测试 PASSED");
             }
-            catch (AssertionException ex)
+            catch (Exception ex)
             {
                 Console.WriteLine($"✗ JPEG 元数据写入测试 FAILED: {ex.Message}");
                 Console.WriteLine("  当前状态: JPEG 元数据写入功能尚未实现");
-                Console.WriteLine("  需要完成:");
+                Console.WriteLine("需要完成:");
                 Console.WriteLine("    1. 使用 MetadataExtractor 库读取现有 EXIF");
                 Console.WriteLine("    2. 修改 ImageDescription 或 UserComment 字段");
                 Console.WriteLine("    3. 写回 JPEG 文件");
@@ -156,7 +156,7 @@ namespace ImageInfo.Tests
 
                 Console.WriteLine("✓ WebP 元数据写入测试 PASSED");
             }
-            catch (AssertionException ex)
+            catch (Exception ex)
             {
                 Console.WriteLine($"✗ WebP 元数据写入测试 FAILED: {ex.Message}");
                 Console.WriteLine("  当前状态: WebP 元数据写入功能尚未实现");
@@ -198,7 +198,7 @@ namespace ImageInfo.Tests
 
                 Console.WriteLine("✓ 元数据完整性验证 PASSED");
             }
-            catch (AssertionException ex)
+            catch (Exception ex)
             {
                 Console.WriteLine($"✗ 元数据完整性验证 FAILED");
                 Console.WriteLine($"  错误: {ex.Message}");
