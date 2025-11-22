@@ -32,6 +32,26 @@ namespace ImageInfo.Services
         }
 
         /// <summary>
+        /// 扫描模式3：TF-IDF区分度关键词提取
+        /// </summary>
+        public static void RunScanMode3(string folder)
+        {
+            Console.WriteLine("🔄 功能3：TF-IDF区分度关键词提取");
+            Console.WriteLine("⏳ 功能待实现...\n");
+            // TODO: 实现TF-IDF提取逻辑
+        }
+
+        /// <summary>
+        /// 扫描模式4：个性化评分预测
+        /// </summary>
+        public static void RunScanMode4(string folder)
+        {
+            Console.WriteLine("🔄 功能4：个性化评分预测");
+            Console.WriteLine("⏳ 功能待实现...\n");
+            // TODO: 实现个性化评分预测逻辑
+        }
+
+        /// <summary>
         /// 内部扫描方法（复用逻辑）
         /// </summary>
         private static void RunScanInternal(string folder, int scanMode)

@@ -18,8 +18,10 @@ class Program
             {
                 "1" => LaunchFunction(folder, "scan", "功能1：不清洗正向关键词"),
                 "2" => LaunchFunction(folder, "scan2", "功能2：清洗正向关键词"),
-                "3" => LaunchFunction(folder, "verify1", "功能3：同时运行三种转换模式"),
-                "4" => LaunchFunction(folder, "mode4", "功能4：选择性转换"),
+                "3" => LaunchFunction(folder, "tfidf", "功能3：TF-IDF关键词提取"),
+                "4" => LaunchFunction(folder, "scorer", "功能4：个性化评分预测"),
+                "21" => LaunchFunction(folder, "verify1", "功能21：同时运行三种转换模式"),
+                "22" => LaunchFunction(folder, "mode4", "功能22：选择性转换"),
                 _ => RunNormalMode(args)
             };
         }
@@ -84,16 +86,30 @@ class Program
             return 0;
         }
 
+        if (devMode?.ToLowerInvariant() == "tfidf")
+        {
+            Console.WriteLine("开发功能3： [开发模式-高级分析] TF-IDF区分度关键词提取\n");
+            DevelopmentModeService.RunScanMode3(folder);
+            return 0;
+        }
+
+        if (devMode?.ToLowerInvariant() == "scorer")
+        {
+            Console.WriteLine("开发功能4： [开发模式-高级分析] 个性化评分预测\n");
+            DevelopmentModeService.RunScanMode4(folder);
+            return 0;
+        }
+
         if (devMode?.ToLowerInvariant() == "verify1")
         {
-            Console.WriteLine("开发功能3： [开发模式-检查方案一] 同时运行三种转换模式，png-jpg / png-webp / jpg-webp，每种模式自动打开一份报告...\n");
+            Console.WriteLine("开发功能21： [开发模式-检查方案一] 同时运行三种转换模式，png-jpg / png-webp / jpg-webp，每种模式自动打开一份报告...\n");
             DevelopmentModeService.RunFullConversionMode(folder);
             return 0;
         }
 
         if (devMode?.ToLowerInvariant() == "mode4")
         {
-            Console.WriteLine("开发功能4： [开发模式-选择性转换] 选择转换类型，png-jpg / png-webp / jpg-webp\n");
+            Console.WriteLine("开发功能22： [开发模式-选择性转换] 选择转换类型，png-jpg / png-webp / jpg-webp\n");
             ProductionModeService.RunInteractiveMode(folder);
             return 0;
         }
