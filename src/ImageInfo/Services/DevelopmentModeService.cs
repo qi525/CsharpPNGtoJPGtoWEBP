@@ -89,11 +89,15 @@ namespace ImageInfo.Services
                     
                     lock (lockObj)
                     {
+                        // 获取文件创建时间
+                        var creationTime = File.GetCreationTime(filePath).ToString("yyyy-MM-dd HH:mm:ss");
+                        
                         metadataList.Add(new MetadataRecord
                         {
                             FileName = Path.GetFileName(filePath),
                             FilePath = filePath,
                             FileFormat = Path.GetExtension(filePath).ToUpperInvariant().TrimStart('.'),
+                            CreationTime = creationTime,
                             Prompt = prompt,
                             NegativePrompt = metadata.NegativePrompt ?? string.Empty,
                             Model = metadata.Model ?? string.Empty,
@@ -409,8 +413,8 @@ namespace ImageInfo.Services
 
                     // 根据模式设置列头
                     var headers = scanMode == 2
-                        ? new[] { "文件名", "文件绝对路径", "文件所在文件夹路径", "格式", "Prompt", "NegativePrompt", "Model", "ModelHash", "Seed", "Sampler", "其他信息", "完整信息", "提取方法", "正向词核心词提取" }
-                        : new[] { "文件名", "文件绝对路径", "文件所在文件夹路径", "格式", "Prompt", "NegativePrompt", "Model", "ModelHash", "Seed", "Sampler", "其他信息", "完整信息", "提取方法" };
+                        ? new[] { "文件名", "文件绝对路径", "文件所在文件夹路径", "格式", "创建时间", "Prompt", "NegativePrompt", "Model", "ModelHash", "Seed", "Sampler", "其他信息", "完整信息", "提取方法", "正向词核心词提取" }
+                        : new[] { "文件名", "文件绝对路径", "文件所在文件夹路径", "格式", "创建时间", "Prompt", "NegativePrompt", "Model", "ModelHash", "Seed", "Sampler", "其他信息", "完整信息", "提取方法" };
                     
                     for (int i = 0; i < headers.Length; i++)
                     {
@@ -427,19 +431,20 @@ namespace ImageInfo.Services
                         worksheet.Cell(row, 2).Value = record.FilePath;
                         worksheet.Cell(row, 3).Value = Path.GetDirectoryName(record.FilePath);
                         worksheet.Cell(row, 4).Value = record.FileFormat;
-                        worksheet.Cell(row, 5).Value = record.Prompt;
-                        worksheet.Cell(row, 6).Value = record.NegativePrompt;
-                        worksheet.Cell(row, 7).Value = record.Model;
-                        worksheet.Cell(row, 8).Value = record.ModelHash;
-                        worksheet.Cell(row, 9).Value = record.Seed;
-                        worksheet.Cell(row, 10).Value = record.Sampler;
-                        worksheet.Cell(row, 11).Value = record.OtherInfo;
-                        worksheet.Cell(row, 12).Value = record.FullInfo;
-                        worksheet.Cell(row, 13).Value = record.ExtractionMethod;
+                        worksheet.Cell(row, 5).Value = record.CreationTime;
+                        worksheet.Cell(row, 6).Value = record.Prompt;
+                        worksheet.Cell(row, 7).Value = record.NegativePrompt;
+                        worksheet.Cell(row, 8).Value = record.Model;
+                        worksheet.Cell(row, 9).Value = record.ModelHash;
+                        worksheet.Cell(row, 10).Value = record.Seed;
+                        worksheet.Cell(row, 11).Value = record.Sampler;
+                        worksheet.Cell(row, 12).Value = record.OtherInfo;
+                        worksheet.Cell(row, 13).Value = record.FullInfo;
+                        worksheet.Cell(row, 14).Value = record.ExtractionMethod;
                         
                         if (scanMode == 2)
                         {
-                            worksheet.Cell(row, 14).Value = record.CorePositivePrompt;
+                            worksheet.Cell(row, 15).Value = record.CorePositivePrompt;
                         }
                         
                         row++;
@@ -448,10 +453,11 @@ namespace ImageInfo.Services
                     // 调整列宽
                     worksheet.Column(2).Width = 30;  // 文件绝对路径列宽度
                     worksheet.Column(3).Width = 30;  // 文件所在文件夹路径列宽度
-                    worksheet.Column(5).Width = 15;  // Prompt 列
-                    worksheet.Column(12).Width = 15; // 完整信息列
+                    worksheet.Column(5).Width = 20;  // 创建时间列
+                    worksheet.Column(6).Width = 15;  // Prompt 列
+                    worksheet.Column(13).Width = 15; // 完整信息列
                     if (scanMode == 2)
-                        worksheet.Column(14).Width = 15; // 核心词列
+                        worksheet.Column(15).Width = 15; // 核心词列
 
                     // 添加摘要页
                     var summary = workbook.Worksheets.Add("摘要");
@@ -519,6 +525,7 @@ namespace ImageInfo.Services
         public string FileName { get; set; } = string.Empty;
         public string FilePath { get; set; } = string.Empty;
         public string FileFormat { get; set; } = string.Empty;
+        public string CreationTime { get; set; } = string.Empty;
         public string Prompt { get; set; } = string.Empty;
         public string NegativePrompt { get; set; } = string.Empty;
         public string Model { get; set; } = string.Empty;
