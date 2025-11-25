@@ -15,152 +15,201 @@ namespace ImageInfo.Services
     /// </summary>
     public static class DevelopmentModeService
     {
-        /// <summary>
-        /// 扫描模式1：不清洗正向关键词的只读模式
-        /// </summary>
-        public static void RunScanMode(string folder)
+    /// <summary>
+    /// 统一的扫描函数入口 - 支持Mode 1/2/3
+    /// Mode 1: 基础 (不清洗正向词)
+    /// Mode 2: +清洗正向词
+    /// Mode 3: +文件原名称 +自定义关键词
+    /// </summary>
+    public static void RunScanMode(string folder)
+    {
+        RunScan(folder, scanMode: 1);
+    }
+
+    public static void RunScanMode2(string folder)
+    {
+        RunScan(folder, scanMode: 2);
+    }
+
+    public static void RunScanMode3(string folder)
+    {
+        RunScan(folder, scanMode: 3);
+    }
+
+    /// <summary>
+    /// 核心扫描函数 - 一个函数处理所有Mode，通过scanMode参数控制额外功能
+    /// Mode 1: 基础元数据
+    /// Mode 2: +清洗正向词
+    /// Mode 3: +文件原名称 +自定义关键词
+    /// Mode 4: +TF-IDF关键词(需要两步处理)
+    /// </summary>
+    private static void RunScan(string folder, int scanMode)
+    {
+        string modeName = scanMode switch
         {
-            RunScanInternal(folder, scanMode: 1);
+            2 => "功能2：清洗正向关键词",
+            3 => "功能3：自定义关键词标记与文件原名称提取",
+            4 => "功能4：TF-IDF区分度关键词提取",
+            _ => "功能1：不清洗正向关键词"
+        };
+
+        Console.WriteLine($"🔄 {modeName}\n");
+        Console.WriteLine($"扫描文件夹: {folder}\n");
+
+        var startTime = DateTime.Now;
+        var allFiles = FileScanner.GetImageFiles(folder).ToList();
+        Console.WriteLine($"找到 {allFiles.Count} 个图片文件\n");
+
+        if (allFiles.Count == 0)
+        {
+            Console.WriteLine("未找到任何图片文件");
+            return;
         }
 
-        /// <summary>
-        /// 扫描模式2：清洗正向关键词的只读模式
-        /// </summary>
-        public static void RunScanMode2(string folder)
+        // 仅Mode3需要的资源
+        var keywordList = scanMode >= 3 ? FilenameTaggerService.GetDefaultKeywordList() : null;
+        
+        // 仅Mode4需要的资源
+        var tfidfService = scanMode >= 4 ? new TfidfProcessorService(topN: 10) : null;
+        var prompts = scanMode >= 4 ? new List<string>() : null;
+        var tfidfResults = scanMode >= 4 ? new Dictionary<int, string>() : null;
+
+        Console.WriteLine("[步骤1] 读取元数据...");
+        var metadataList = new List<MetadataRecord>();
+        int processed = 0;
+        object lockObj = new object();
+
+        System.Threading.Tasks.Parallel.ForEach(allFiles, new System.Threading.Tasks.ParallelOptions 
+        { 
+            MaxDegreeOfParallelism = Environment.ProcessorCount 
+        }, filePath =>
         {
-            RunScanInternal(folder, scanMode: 2);
-        }
-
-        /// <summary>
-        /// 扫描模式3：自定义关键词标记与文件原名称提取
-        /// </summary>
-        public static void RunScanMode3(string folder)
-        {
-            Console.WriteLine("🔄 功能3：自定义关键词标记与文件原名称提取\n");
-            Console.WriteLine($"扫描文件夹: {folder}\n");
-            
-            var startTime = DateTime.Now;
-            var allFiles = FileScanner.GetImageFiles(folder).ToList();
-            Console.WriteLine($"找到 {allFiles.Count} 个图片文件\n");
-
-            if (allFiles.Count == 0)
+            try
             {
-                Console.WriteLine("未找到任何图片文件");
-                return;
-            }
-
-            // 获取默认关键词列表
-            var keywordList = FilenameTaggerService.GetDefaultKeywordList();
-
-            // 收集元数据
-            Console.WriteLine("[步骤1] 读取元数据并提取关键信息...");
-            var metadataList = new List<MetadataRecord>();
-            int processed = 0;
-            object lockObj = new object();
-
-            System.Threading.Tasks.Parallel.ForEach(allFiles, new System.Threading.Tasks.ParallelOptions 
-            { 
-                MaxDegreeOfParallelism = Environment.ProcessorCount 
-            }, filePath =>
-            {
-                try
+                var metadata = MetadataExtractors.ReadAIMetadata(filePath);
+                var record = new MetadataRecord
                 {
-                    var metadata = MetadataExtractors.ReadAIMetadata(filePath);
-                    var prompt = metadata.Prompt ?? string.Empty;
-                    var negativePrompt = metadata.NegativePrompt ?? string.Empty;
-                    var fileName = Path.GetFileName(filePath);
+                    FileName = Path.GetFileName(filePath),
+                    FilePath = filePath,
+                    FileFormat = Path.GetExtension(filePath).ToUpperInvariant().TrimStart('.'),
+                    CreationTime = File.GetCreationTime(filePath).ToString("yyyy-MM-dd HH:mm:ss"),
+                    Prompt = metadata.Prompt ?? string.Empty,
+                    NegativePrompt = metadata.NegativePrompt ?? string.Empty,
+                    Model = metadata.Model ?? string.Empty,
+                    ModelHash = metadata.ModelHash ?? string.Empty,
+                    Seed = metadata.Seed ?? string.Empty,
+                    Sampler = metadata.Sampler ?? string.Empty,
+                    OtherInfo = metadata.OtherInfo ?? string.Empty,
+                    FullInfo = metadata.FullInfo ?? string.Empty,
+                    ExtractionMethod = metadata.FullInfoExtractionMethod ?? string.Empty
+                };
 
-                    // 使用 FilenameParser 提取原始文件名
-                    var parseResult = FilenameParser.ParseFilename(fileName);
-                    var originalFileName = parseResult.OriginalName;
+                // Mode 2+: 清洗正向词
+                if (scanMode >= 2)
+                {
+                    record.CorePositivePrompt = PromptCleanerService.CleanPositivePrompt(record.Prompt);
+                }
 
-                    // 使用 FilenameTaggerService 提取关键词
-                    var taggingResult = FilenameTaggerService.ExtractKeywordsFromPrompts(
-                        prompt, 
-                        negativePrompt, 
-                        keywordList
+                // Mode 3+: 文件原名称 + 自定义关键词
+                if (scanMode >= 3 && keywordList != null)
+                {
+                    record.OriginalFileName = FilenameParser.ParseFilename(record.FileName).OriginalName;
+                    var tagging = FilenameTaggerService.ExtractKeywordsFromPrompts(
+                        record.Prompt, record.NegativePrompt, keywordList
                     );
-                    var customKeywords = taggingResult.TagSuffix;
+                    record.CustomKeywords = tagging.TagSuffix;
+                }
 
-                    // 获取文件创建时间
-                    var creationTime = File.GetCreationTime(filePath).ToString("yyyy-MM-dd HH:mm:ss");
-                    
+                // Mode 4: 收集Prompt用于TF-IDF
+                if (scanMode >= 4 && !string.IsNullOrWhiteSpace(record.Prompt) && prompts != null)
+                {
                     lock (lockObj)
                     {
-                        metadataList.Add(new MetadataRecord
-                        {
-                            FileName = fileName,
-                            FilePath = filePath,
-                            FileFormat = Path.GetExtension(filePath).ToUpperInvariant().TrimStart('.'),
-                            CreationTime = creationTime,
-                            Prompt = prompt,
-                            NegativePrompt = negativePrompt,
-                            Model = metadata.Model ?? string.Empty,
-                            ModelHash = metadata.ModelHash ?? string.Empty,
-                            Seed = metadata.Seed ?? string.Empty,
-                            Sampler = metadata.Sampler ?? string.Empty,
-                            OtherInfo = metadata.OtherInfo ?? string.Empty,
-                            FullInfo = metadata.FullInfo ?? string.Empty,
-                            ExtractionMethod = metadata.FullInfoExtractionMethod ?? string.Empty,
-                            OriginalFileName = originalFileName,
-                            CustomKeywords = customKeywords
-                        });
-
-                        processed++;
-                        if (processed % 100 == 0)
-                            Console.Write($"已处理: {processed}/{allFiles.Count}\r");
+                        prompts.Add(record.Prompt);
                     }
                 }
-                catch (Exception ex)
-                {
-                    Console.WriteLine($"警告: 读取 {Path.GetFileName(filePath)} 时出错: {ex.Message}");
-                }
-            });
-            Console.WriteLine($"已处理: {processed}/{allFiles.Count}     \n");
 
-            // 生成 Excel 报告
-            Console.WriteLine("[步骤2] 生成 Excel 报告...");
-            string reportPath = GenerateExcelReport(metadataList, folder, scanMode: 3);
-
-            if (!string.IsNullOrEmpty(reportPath) && File.Exists(reportPath))
-            {
-                Console.WriteLine($"✓ 报告已生成: {reportPath}\n");
-                
-                // 自动打开
-                Console.WriteLine("[步骤3] 自动打开报告...");
-                try
+                lock (lockObj)
                 {
-                    System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
-                    {
-                        FileName = reportPath,
-                        UseShellExecute = true
-                    });
-                    Console.WriteLine("✓ 报告已打开");
-                }
-                catch (Exception ex)
-                {
-                    Console.WriteLine($"⚠ 无法自动打开报告: {ex.Message}");
-                    Console.WriteLine($"请手动打开: {reportPath}");
+                    metadataList.Add(record);
+                    processed++;
+                    if (processed % 100 == 0)
+                        Console.Write($"已处理: {processed}/{allFiles.Count}\r");
                 }
             }
-            else
+            catch (Exception ex)
             {
-                Console.WriteLine("✗ 生成报告失败");
+                Console.WriteLine($"警告: 读取 {Path.GetFileName(filePath)} 时出错: {ex.Message}");
             }
+        });
 
-            var endTime = DateTime.Now;
-            var elapsed = endTime - startTime;
-            Console.WriteLine($"\n耗时: {elapsed.TotalSeconds:F2} 秒");
+        Console.WriteLine($"已处理: {processed}/{allFiles.Count}     \n");
+
+        // Mode 4: 构建TF-IDF语料库并计算关键词
+        if (scanMode >= 4 && tfidfService != null && prompts != null)
+        {
+            Console.WriteLine("[步骤2-TF-IDF] 构建语料库...");
+            tfidfService.BuildDocumentLibrary(prompts);
+            tfidfService.BuildIdfTable();
+            Console.WriteLine($"✓ 语料库构建完成\n");
+
+            Console.WriteLine("[步骤3-TF-IDF] 计算关键词...");
+            for (int i = 0; i < metadataList.Count; i++)
+            {
+                if (!string.IsNullOrWhiteSpace(metadataList[i].Prompt))
+                {
+                    var result = tfidfService.ProcessSingleRow(i, metadataList[i].Prompt);
+                    tfidfResults![i] = result.ExcelString ?? string.Empty;
+                }
+                else
+                {
+                    tfidfResults![i] = string.Empty;
+                }
+
+                if ((i + 1) % 100 == 0)
+                    Console.Write($"已计算: {i + 1}/{metadataList.Count}\r");
+            }
+            Console.WriteLine($"已计算: {metadataList.Count}/{metadataList.Count}     \n");
         }
 
-        /// <summary>
-        /// 扫描模式4：TF-IDF区分度关键词提取
+        Console.WriteLine("[步骤2] 生成 Excel 报告...");
+        
+        string reportPath = scanMode >= 4 && tfidfResults != null 
+            ? GenerateExcelReportWithTfidf(metadataList, tfidfResults, folder)
+            : GenerateExcelReport(metadataList, folder, scanMode);
+
+        if (!string.IsNullOrEmpty(reportPath) && File.Exists(reportPath))
+        {
+            Console.WriteLine($"✓ 报告已生成: {reportPath}\n");
+            Console.WriteLine("[步骤4] 自动打开报告...");
+            try
+            {
+                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+                {
+                    FileName = reportPath,
+                    UseShellExecute = true
+                });
+                Console.WriteLine("✓ 报告已打开");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"⚠ 无法自动打开报告: {ex.Message}");
+                Console.WriteLine($"请手动打开: {reportPath}");
+            }
+        }
+        else
+        {
+            Console.WriteLine("✗ 生成报告失败");
+        }
+
+        var elapsed = DateTime.Now - startTime;
+        Console.WriteLine($"\n耗时: {elapsed.TotalSeconds:F2} 秒");
+    }        /// <summary>
+        /// 扫描模式4：TF-IDF区分度关键词提取（Mode3的扩展）
         /// </summary>
         public static void RunScanMode4(string folder)
         {
-            Console.WriteLine("🔄 功能4：TF-IDF区分度关键词提取");
-            Console.WriteLine("⏳ 功能待实现...\n");
-            // TODO: 实现TF-IDF提取逻辑
+            RunScan(folder, scanMode: 4);
         }
 
         /// <summary>
@@ -171,112 +220,6 @@ namespace ImageInfo.Services
             Console.WriteLine("🔄 功能5：个性化评分预测");
             Console.WriteLine("⏳ 功能待实现...\n");
             // TODO: 实现个性化评分预测逻辑
-        }
-
-        /// <summary>
-        /// 内部扫描方法（复用逻辑）
-        /// </summary>
-        private static void RunScanInternal(string folder, int scanMode)
-        {
-            var startTime = DateTime.Now;
-            string modeDesc = scanMode == 2 ? "[只读模式2] 清洗正向关键词" : "[只读模式1] 不清洗正向关键词";
-            Console.WriteLine($"{modeDesc}\n");
-            Console.WriteLine($"扫描文件夹: {folder}\n");
-            
-            var allFiles = FileScanner.GetImageFiles(folder).ToList();
-            Console.WriteLine($"找到 {allFiles.Count} 个图片文件\n");
-
-            if (allFiles.Count == 0)
-            {
-                Console.WriteLine("未找到任何图片文件");
-                return;
-            }
-
-            // 收集元数据
-            Console.WriteLine("[步骤1] 读取元数据...");
-            var metadataList = new List<MetadataRecord>();
-            int processed = 0;
-            object lockObj = new object();
-
-            System.Threading.Tasks.Parallel.ForEach(allFiles, new System.Threading.Tasks.ParallelOptions 
-            { 
-                MaxDegreeOfParallelism = Environment.ProcessorCount 
-            }, filePath =>
-            {
-                try
-                {
-                    var metadata = MetadataExtractors.ReadAIMetadata(filePath);
-                    var prompt = metadata.Prompt ?? string.Empty;
-                    var corePrompt = scanMode == 2 ? PromptCleanerService.CleanPositivePrompt(prompt) : string.Empty;
-                    
-                    lock (lockObj)
-                    {
-                        // 获取文件创建时间
-                        var creationTime = File.GetCreationTime(filePath).ToString("yyyy-MM-dd HH:mm:ss");
-                        
-                        metadataList.Add(new MetadataRecord
-                        {
-                            FileName = Path.GetFileName(filePath),
-                            FilePath = filePath,
-                            FileFormat = Path.GetExtension(filePath).ToUpperInvariant().TrimStart('.'),
-                            CreationTime = creationTime,
-                            Prompt = prompt,
-                            NegativePrompt = metadata.NegativePrompt ?? string.Empty,
-                            Model = metadata.Model ?? string.Empty,
-                            ModelHash = metadata.ModelHash ?? string.Empty,
-                            Seed = metadata.Seed ?? string.Empty,
-                            Sampler = metadata.Sampler ?? string.Empty,
-                            OtherInfo = metadata.OtherInfo ?? string.Empty,
-                            FullInfo = metadata.FullInfo ?? string.Empty,
-                            ExtractionMethod = metadata.FullInfoExtractionMethod ?? string.Empty,
-                            CorePositivePrompt = corePrompt
-                        });
-
-                        processed++;
-                        if (processed % 100 == 0)
-                            Console.Write($"已处理: {processed}/{allFiles.Count}\r");
-                    }
-                }
-                catch (Exception ex)
-                {
-                    Console.WriteLine($"警告: 读取 {Path.GetFileName(filePath)} 时出错: {ex.Message}");
-                }
-            });
-            Console.WriteLine($"已处理: {processed}/{allFiles.Count}     \n");
-
-            // 生成 Excel 报告
-            Console.WriteLine("[步骤2] 生成 Excel 报告...");
-            string reportPath = GenerateExcelReport(metadataList, folder, scanMode);
-
-            if (!string.IsNullOrEmpty(reportPath) && File.Exists(reportPath))
-            {
-                Console.WriteLine($"✓ 报告已生成: {reportPath}\n");
-                
-                // 自动打开
-                Console.WriteLine("[步骤3] 自动打开报告...");
-                try
-                {
-                    System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
-                    {
-                        FileName = reportPath,
-                        UseShellExecute = true
-                    });
-                    Console.WriteLine("✓ 报告已打开");
-                }
-                catch (Exception ex)
-                {
-                    Console.WriteLine($"⚠ 无法自动打开报告: {ex.Message}");
-                    Console.WriteLine($"请手动打开: {reportPath}");
-                }
-            }
-            else
-            {
-                Console.WriteLine("✗ 生成报告失败");
-            }
-
-            var endTime = DateTime.Now;
-            var elapsed = endTime - startTime;
-            Console.WriteLine($"\n耗时: {elapsed.TotalSeconds:F2} 秒");
         }
 
         /// <summary>
@@ -519,6 +462,120 @@ namespace ImageInfo.Services
             if (written && verified) return "成功！";
             if (written) return "警告：已写入但验证失败";
             return "失败";
+        }
+
+        /// <summary>
+        /// 生成包含TF-IDF关键词的Excel报告（功能4）
+        /// </summary>
+        private static string GenerateExcelReportWithTfidf(List<MetadataRecord> records, Dictionary<int, string> tfidfResults, string scanFolder)
+        {
+            try
+            {
+                string reportName = $"metadata_scan_Mode4_TFIDF_{DateTime.Now:yyyy-MM-dd_HH-mm-ss}.xlsx";
+                string reportPath = Path.Combine(Path.GetTempPath(), reportName);
+
+                using (var workbook = new XLWorkbook())
+                {
+                    var worksheet = workbook.Worksheets.Add("TF-IDF分析报告");
+
+                    // 设置列头
+                    var headers = new[] { "文件名", "文件绝对路径", "文件所在文件夹路径", "格式", "创建时间", "Prompt", "NegativePrompt", "Model", "ModelHash", "Seed", "Sampler", "其他信息", "完整信息", "提取方法", "TF-IDF关键词(Top10)" };
+                    
+                    for (int i = 0; i < headers.Length; i++)
+                    {
+                        worksheet.Cell(1, i + 1).Value = headers[i];
+                        worksheet.Cell(1, i + 1).Style.Font.Bold = true;
+                        worksheet.Cell(1, i + 1).Style.Fill.BackgroundColor = XLColor.LightGray;
+                    }
+
+                    // 填充数据
+                    int row = 2;
+                    for (int i = 0; i < records.Count; i++)
+                    {
+                        var record = records[i];
+                        worksheet.Cell(row, 1).Value = record.FileName;
+                        worksheet.Cell(row, 2).Value = record.FilePath;
+                        worksheet.Cell(row, 3).Value = Path.GetDirectoryName(record.FilePath);
+                        worksheet.Cell(row, 4).Value = record.FileFormat;
+                        worksheet.Cell(row, 5).Value = record.CreationTime;
+                        worksheet.Cell(row, 6).Value = record.Prompt;
+                        worksheet.Cell(row, 7).Value = record.NegativePrompt;
+                        worksheet.Cell(row, 8).Value = record.Model;
+                        worksheet.Cell(row, 9).Value = record.ModelHash;
+                        worksheet.Cell(row, 10).Value = record.Seed;
+                        worksheet.Cell(row, 11).Value = record.Sampler;
+                        worksheet.Cell(row, 12).Value = record.OtherInfo;
+                        worksheet.Cell(row, 13).Value = record.FullInfo;
+                        worksheet.Cell(row, 14).Value = record.ExtractionMethod;
+                        
+                        // 添加TF-IDF结果
+                        if (tfidfResults.ContainsKey(i))
+                        {
+                            worksheet.Cell(row, 15).Value = tfidfResults[i];
+                        }
+                        else
+                        {
+                            worksheet.Cell(row, 15).Value = string.Empty;
+                        }
+
+                        row++;
+                    }
+
+                    // 调整列宽
+                    worksheet.Column(1).Width = 20;   // 文件名
+                    worksheet.Column(2).Width = 30;   // 文件绝对路径
+                    worksheet.Column(3).Width = 30;   // 文件所在文件夹路径
+                    worksheet.Column(4).Width = 10;   // 格式
+                    worksheet.Column(5).Width = 18;   // 创建时间
+                    worksheet.Column(6).Width = 20;   // Prompt
+                    worksheet.Column(7).Width = 20;   // NegativePrompt
+                    worksheet.Column(8).Width = 15;   // Model
+                    worksheet.Column(9).Width = 15;   // ModelHash
+                    worksheet.Column(10).Width = 12;  // Seed
+                    worksheet.Column(11).Width = 15;  // Sampler
+                    worksheet.Column(12).Width = 15;  // 其他信息
+                    worksheet.Column(13).Width = 15;  // 完整信息
+                    worksheet.Column(14).Width = 15;  // 提取方法
+                    worksheet.Column(15).Width = 30;  // TF-IDF关键词
+
+                    // 添加摘要页
+                    var summary = workbook.Worksheets.Add("摘要");
+                    summary.Cell(1, 1).Value = "TF-IDF分析摘要";
+                    summary.Cell(1, 1).Style.Font.Bold = true;
+                    summary.Cell(1, 1).Style.Font.FontSize = 14;
+
+                    summary.Cell(3, 1).Value = "扫描文件夹:";
+                    summary.Cell(3, 2).Value = scanFolder;
+
+                    summary.Cell(4, 1).Value = "扫描时间:";
+                    summary.Cell(4, 2).Value = DateTime.Now;
+
+                    summary.Cell(5, 1).Value = "文件总数:";
+                    summary.Cell(5, 2).Value = records.Count;
+
+                    summary.Cell(6, 1).Value = "包含Prompt的文件:";
+                    summary.Cell(6, 2).Value = tfidfResults.Count(x => !string.IsNullOrEmpty(x.Value));
+
+                    var formatCount = records.GroupBy(r => r.FileFormat).ToDictionary(g => g.Key, g => g.Count());
+                    int summaryRow = 8;
+                    summary.Cell(summaryRow, 1).Value = "格式统计";
+                    summary.Cell(summaryRow, 1).Style.Font.Bold = true;
+                    foreach (var kvp in formatCount)
+                    {
+                        summaryRow++;
+                        summary.Cell(summaryRow, 1).Value = kvp.Key;
+                        summary.Cell(summaryRow, 2).Value = kvp.Value;
+                    }
+
+                    workbook.SaveAs(reportPath);
+                    return reportPath;
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"✗ 生成报告时出错: {ex.Message}");
+                return string.Empty;
+            }
         }
 
         private static string GenerateExcelReport(List<MetadataRecord> records, string scanFolder, int scanMode = 1)
