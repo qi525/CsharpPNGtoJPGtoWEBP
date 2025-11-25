@@ -32,21 +32,143 @@ namespace ImageInfo.Services
         }
 
         /// <summary>
-        /// 扫描模式3：TF-IDF区分度关键词提取
+        /// 扫描模式3：自定义关键词标记与文件原名称提取
         /// </summary>
         public static void RunScanMode3(string folder)
         {
-            Console.WriteLine("🔄 功能3：TF-IDF区分度关键词提取");
+            Console.WriteLine("🔄 功能3：自定义关键词标记与文件原名称提取\n");
+            Console.WriteLine($"扫描文件夹: {folder}\n");
+            
+            var startTime = DateTime.Now;
+            var allFiles = FileScanner.GetImageFiles(folder).ToList();
+            Console.WriteLine($"找到 {allFiles.Count} 个图片文件\n");
+
+            if (allFiles.Count == 0)
+            {
+                Console.WriteLine("未找到任何图片文件");
+                return;
+            }
+
+            // 获取默认关键词列表
+            var keywordList = FilenameTaggerService.GetDefaultKeywordList();
+
+            // 收集元数据
+            Console.WriteLine("[步骤1] 读取元数据并提取关键信息...");
+            var metadataList = new List<MetadataRecord>();
+            int processed = 0;
+            object lockObj = new object();
+
+            System.Threading.Tasks.Parallel.ForEach(allFiles, new System.Threading.Tasks.ParallelOptions 
+            { 
+                MaxDegreeOfParallelism = Environment.ProcessorCount 
+            }, filePath =>
+            {
+                try
+                {
+                    var metadata = MetadataExtractors.ReadAIMetadata(filePath);
+                    var prompt = metadata.Prompt ?? string.Empty;
+                    var negativePrompt = metadata.NegativePrompt ?? string.Empty;
+                    var fileName = Path.GetFileName(filePath);
+
+                    // 使用 FilenameParser 提取原始文件名
+                    var parseResult = FilenameParser.ParseFilename(fileName);
+                    var originalFileName = parseResult.OriginalName;
+
+                    // 使用 FilenameTaggerService 提取关键词
+                    var taggingResult = FilenameTaggerService.ExtractKeywordsFromPrompts(
+                        prompt, 
+                        negativePrompt, 
+                        keywordList
+                    );
+                    var customKeywords = taggingResult.TagSuffix;
+
+                    // 获取文件创建时间
+                    var creationTime = File.GetCreationTime(filePath).ToString("yyyy-MM-dd HH:mm:ss");
+                    
+                    lock (lockObj)
+                    {
+                        metadataList.Add(new MetadataRecord
+                        {
+                            FileName = fileName,
+                            FilePath = filePath,
+                            FileFormat = Path.GetExtension(filePath).ToUpperInvariant().TrimStart('.'),
+                            CreationTime = creationTime,
+                            Prompt = prompt,
+                            NegativePrompt = negativePrompt,
+                            Model = metadata.Model ?? string.Empty,
+                            ModelHash = metadata.ModelHash ?? string.Empty,
+                            Seed = metadata.Seed ?? string.Empty,
+                            Sampler = metadata.Sampler ?? string.Empty,
+                            OtherInfo = metadata.OtherInfo ?? string.Empty,
+                            FullInfo = metadata.FullInfo ?? string.Empty,
+                            ExtractionMethod = metadata.FullInfoExtractionMethod ?? string.Empty,
+                            OriginalFileName = originalFileName,
+                            CustomKeywords = customKeywords
+                        });
+
+                        processed++;
+                        if (processed % 100 == 0)
+                            Console.Write($"已处理: {processed}/{allFiles.Count}\r");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"警告: 读取 {Path.GetFileName(filePath)} 时出错: {ex.Message}");
+                }
+            });
+            Console.WriteLine($"已处理: {processed}/{allFiles.Count}     \n");
+
+            // 生成 Excel 报告
+            Console.WriteLine("[步骤2] 生成 Excel 报告...");
+            string reportPath = GenerateExcelReport(metadataList, folder, scanMode: 3);
+
+            if (!string.IsNullOrEmpty(reportPath) && File.Exists(reportPath))
+            {
+                Console.WriteLine($"✓ 报告已生成: {reportPath}\n");
+                
+                // 自动打开
+                Console.WriteLine("[步骤3] 自动打开报告...");
+                try
+                {
+                    System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+                    {
+                        FileName = reportPath,
+                        UseShellExecute = true
+                    });
+                    Console.WriteLine("✓ 报告已打开");
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"⚠ 无法自动打开报告: {ex.Message}");
+                    Console.WriteLine($"请手动打开: {reportPath}");
+                }
+            }
+            else
+            {
+                Console.WriteLine("✗ 生成报告失败");
+            }
+
+            var endTime = DateTime.Now;
+            var elapsed = endTime - startTime;
+            Console.WriteLine($"\n耗时: {elapsed.TotalSeconds:F2} 秒");
+        }
+
+        /// <summary>
+        /// 扫描模式4：TF-IDF区分度关键词提取
+        /// </summary>
+        public static void RunScanMode4(string folder)
+        {
+            Console.WriteLine("🔄 功能4：TF-IDF区分度关键词提取");
             Console.WriteLine("⏳ 功能待实现...\n");
             // TODO: 实现TF-IDF提取逻辑
         }
 
         /// <summary>
-        /// 扫描模式4：个性化评分预测
+        /// 扫描模式5：个性化评分预测
         /// </summary>
-        public static void RunScanMode4(string folder)
+        public static void RunScanMode5(string folder)
         {
-            Console.WriteLine("🔄 功能4：个性化评分预测");
+            Console.WriteLine("🔄 功能5：个性化评分预测");
             Console.WriteLine("⏳ 功能待实现...\n");
             // TODO: 实现个性化评分预测逻辑
         }
@@ -403,7 +525,12 @@ namespace ImageInfo.Services
         {
             try
             {
-                string modeLabel = scanMode == 2 ? "Mode2_Cleaned" : "Mode1_NoClean";
+                string modeLabel = scanMode switch
+                {
+                    2 => "Mode2_Cleaned",
+                    3 => "Mode3_Tagger",
+                    _ => "Mode1_NoClean"
+                };
                 string reportName = $"metadata_scan_{modeLabel}_{DateTime.Now:yyyy-MM-dd_HH-mm-ss}.xlsx";
                 string reportPath = Path.Combine(Path.GetTempPath(), reportName);
 
@@ -412,9 +539,12 @@ namespace ImageInfo.Services
                     var worksheet = workbook.Worksheets.Add("元数据扫描报告");
 
                     // 根据模式设置列头
-                    var headers = scanMode == 2
-                        ? new[] { "文件名", "文件绝对路径", "文件所在文件夹路径", "格式", "创建时间", "Prompt", "NegativePrompt", "Model", "ModelHash", "Seed", "Sampler", "其他信息", "完整信息", "提取方法", "正向词核心词提取" }
-                        : new[] { "文件名", "文件绝对路径", "文件所在文件夹路径", "格式", "创建时间", "Prompt", "NegativePrompt", "Model", "ModelHash", "Seed", "Sampler", "其他信息", "完整信息", "提取方法" };
+                    var headers = scanMode switch
+                    {
+                        2 => new[] { "文件名", "文件绝对路径", "文件所在文件夹路径", "格式", "创建时间", "Prompt", "NegativePrompt", "Model", "ModelHash", "Seed", "Sampler", "其他信息", "完整信息", "提取方法", "正向词核心词提取" },
+                        3 => new[] { "文件名", "文件绝对路径", "文件所在文件夹路径", "格式", "创建时间", "Prompt", "NegativePrompt", "Model", "ModelHash", "Seed", "Sampler", "其他信息", "完整信息", "提取方法", "正向词核心词提取", "文件原名称", "自定义关键词" },
+                        _ => new[] { "文件名", "文件绝对路径", "文件所在文件夹路径", "格式", "创建时间", "Prompt", "NegativePrompt", "Model", "ModelHash", "Seed", "Sampler", "其他信息", "完整信息", "提取方法" }
+                    };
                     
                     for (int i = 0; i < headers.Length; i++)
                     {
@@ -446,6 +576,13 @@ namespace ImageInfo.Services
                         {
                             worksheet.Cell(row, 15).Value = record.CorePositivePrompt;
                         }
+                        else if (scanMode == 3)
+                        {
+                            // Mode 3: 继承Mode 2的所有列，末尾添加新增的两列
+                            worksheet.Cell(row, 15).Value = record.CorePositivePrompt;
+                            worksheet.Cell(row, 16).Value = record.OriginalFileName;
+                            worksheet.Cell(row, 17).Value = record.CustomKeywords;
+                        }
                         
                         row++;
                     }
@@ -458,10 +595,22 @@ namespace ImageInfo.Services
                     worksheet.Column(13).Width = 15; // 完整信息列
                     if (scanMode == 2)
                         worksheet.Column(15).Width = 15; // 核心词列
+                    else if (scanMode == 3)
+                    {
+                        worksheet.Column(15).Width = 15; // 核心词列
+                        worksheet.Column(16).Width = 20; // 文件原名称列
+                        worksheet.Column(17).Width = 25; // 自定义关键词列
+                    }
 
                     // 添加摘要页
                     var summary = workbook.Worksheets.Add("摘要");
-                    summary.Cell(1, 1).Value = scanMode == 2 ? "扫描摘要 (已清洗)" : "扫描摘要";
+                    string summaryTitle = scanMode switch
+                    {
+                        2 => "扫描摘要 (已清洗)",
+                        3 => "扫描摘要 (关键词标记)",
+                        _ => "扫描摘要"
+                    };
+                    summary.Cell(1, 1).Value = summaryTitle;
                     summary.Cell(1, 1).Style.Font.Bold = true;
                     summary.Cell(1, 1).Style.Font.FontSize = 14;
 
@@ -536,5 +685,7 @@ namespace ImageInfo.Services
         public string FullInfo { get; set; } = string.Empty;
         public string ExtractionMethod { get; set; } = string.Empty;
         public string CorePositivePrompt { get; set; } = string.Empty;
+        public string OriginalFileName { get; set; } = string.Empty;
+        public string CustomKeywords { get; set; } = string.Empty;
     }
 }

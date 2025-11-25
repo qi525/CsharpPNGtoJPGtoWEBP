@@ -18,8 +18,9 @@ class Program
             {
                 "1" => LaunchFunction(folder, "scan", "功能1：不清洗正向关键词"),
                 "2" => LaunchFunction(folder, "scan2", "功能2：清洗正向关键词"),
-                "3" => LaunchFunction(folder, "tfidf", "功能3：TF-IDF关键词提取"),
-                "4" => LaunchFunction(folder, "scorer", "功能4：个性化评分预测"),
+                "3" => LaunchFunction(folder, "tfidf", "功能3：自定义关键词标记"),
+                "4" => LaunchFunction(folder, "scorer", "功能4：TF-IDF关键词提取"),
+                "5" => LaunchFunction(folder, "predict", "功能5：个性化评分预测"),
                 "21" => LaunchFunction(folder, "verify1", "功能21：同时运行三种转换模式"),
                 "22" => LaunchFunction(folder, "mode4", "功能22：选择性转换"),
                 _ => RunNormalMode(args)
@@ -88,15 +89,22 @@ class Program
 
         if (devMode?.ToLowerInvariant() == "tfidf")
         {
-            Console.WriteLine("开发功能3： [开发模式-高级分析] TF-IDF区分度关键词提取\n");
+            Console.WriteLine("开发功能3： [开发模式-自定义标记] 自定义关键词标记与文件原名称提取\n");
             DevelopmentModeService.RunScanMode3(folder);
             return 0;
         }
 
         if (devMode?.ToLowerInvariant() == "scorer")
         {
-            Console.WriteLine("开发功能4： [开发模式-高级分析] 个性化评分预测\n");
+            Console.WriteLine("开发功能4： [开发模式-高级分析] TF-IDF区分度关键词提取\n");
             DevelopmentModeService.RunScanMode4(folder);
+            return 0;
+        }
+
+        if (devMode?.ToLowerInvariant() == "predict")
+        {
+            Console.WriteLine("开发功能5： [开发模式-高级分析] 个性化评分预测\n");
+            DevelopmentModeService.RunScanMode5(folder);
             return 0;
         }
 
