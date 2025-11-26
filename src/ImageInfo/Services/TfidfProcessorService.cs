@@ -304,6 +304,63 @@ namespace ImageInfo.Services
         }
 
         /// <summary>
+        /// 新增方法：在已有的全局语料库基础上，对指定文档计算TF-IDF
+        /// 使用场景：当语料库已经构建完成时，对单个新文档进行特征提取
+        /// </summary>
+        public TfidfResult GetTfidfForDocument(int docId, string rawText)
+        {
+            // 临时预处理单个文档（不影响全局语料库）
+            var tempDoc = PreprocessText(docId, rawText);
+            
+            if (tempDoc.WordCounts == null || tempDoc.WordCounts.Count == 0)
+            {
+                return new TfidfResult
+                {
+                    DocId = docId,
+                    ExcelString = "无有效词汇",
+                    TopKeywords = new List<string>()
+                };
+            }
+
+            // 使用全局IDF表计算该文档的TF-IDF
+            var wordScores = new List<(string word, double score)>();
+
+            foreach (var kvp in tempDoc.WordCounts)
+            {
+                string word = kvp.Key;
+                int count = kvp.Value;
+
+                // TF = 词在文档中出现次数 / 文档总词数
+                double tf = (double)count / tempDoc.TotalWords;
+
+                // IDF从全局表中获取（如果词不在表中，使用默认值）
+                double idf = _idfTable.ContainsKey(word) ? _idfTable[word] : Math.Log(_documents.Count + 1);
+
+                // TF-IDF = TF * IDF
+                double tfidf = tf * idf;
+
+                wordScores.Add((word, tfidf));
+            }
+
+            // 按TF-IDF分数降序排列，取Top N
+            var topWords = wordScores
+                .OrderByDescending(x => x.score)
+                .Take(_topN)
+                .ToList();
+
+            // 格式化为Excel字符串和关键词列表
+            var excelString = FormatExcelString(topWords);
+            var topKeywords = topWords.Select(x => x.word).ToList();
+
+            return new TfidfResult
+            {
+                DocId = docId,
+                ExcelString = excelString,
+                TopKeywords = topKeywords
+            };
+        }
+
+        /// <summary>
         /// 框架方法7：主流程 - 从文本列表生成TF-IDF特征
         /// </summary>
         public List<TfidfResult> ProcessAll(List<string> texts)
