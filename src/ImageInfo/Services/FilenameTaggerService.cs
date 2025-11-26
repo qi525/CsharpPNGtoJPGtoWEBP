@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using ImageInfo.Data;
 
 namespace ImageInfo.Services;
 
@@ -233,17 +234,6 @@ public class FilenameTaggerService
     /// <returns>默认关键词列表</returns>
     public static List<string> GetDefaultKeywordList()
     {
-        return new List<string>
-        {
-            "shorekeeper",
-            "noshiro", "rio_(blue_archive)", "taihou", "azur_lane", "blue_archive", "fgo", "pokemon", "fate", "touhou", "idolmaster", "love_live", "bleach", "gundam", "umamusume", "honkai", "hololive", "one_piece", "final_fantasy", "persona", "zelda", "chainsaw_man", "nikke", "xenoblade", "kantai_collection", "genshin_impact", "love_live", "naruto", "overwatch", "genderswap", "futanari", "skeleton", "green_hair", "splatoon", "boku_no_hero_academia", "midoriya_izuku", "ashido_mina", "band-aid", "covered_nipples", "undressing", "removing_bra", "tail_around_neck", "asphyxiation", "strangling",
-            "pasties",                  // 乳贴/胸贴
-            "cross_pasties",            // 十字乳贴
-            "tape",                     // 胶带
-            "tape_on_nipples",          // 胶带贴在乳头上
-            "open_clothes",             // 敞开的衣服
-            "open_jacket",              // 敞开的夹克
-            "no_pants"                  // 没穿裤子
-        };
+        return new List<string>(CustomKeywords.Keywords);
     }
 }
