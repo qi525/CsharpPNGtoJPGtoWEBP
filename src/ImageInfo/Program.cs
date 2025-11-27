@@ -21,6 +21,7 @@ class Program
                 "3" => LaunchFunction(folder, "tfidf", "功能3：自定义关键词标记"),
                 "4" => LaunchFunction(folder, "scorer", "功能4：TF-IDF关键词提取"),
                 "5" => LaunchFunction(folder, "predict", "功能5：个性化评分预测"),
+                "6" => LaunchFunction(folder, "rename", "功能6：图片文件重命名"),
                 "21" => LaunchFunction(folder, "verify1", "功能21：同时运行三种转换模式"),
                 "22" => LaunchFunction(folder, "mode4", "功能22：选择性转换"),
                 _ => RunNormalMode(args)
@@ -105,6 +106,13 @@ class Program
         {
             Console.WriteLine("开发功能5： [开发模式-高级分析] 个性化评分预测\n");
             DevelopmentModeService.RunScanMode5(folder);
+            return 0;
+        }
+
+        if (devMode?.ToLowerInvariant() == "rename")
+        {
+            Console.WriteLine("开发功能6： [开发模式-文件重命名] 根据合并后缀重命名图片文件\n");
+            DevelopmentModeService.RunScanMode6(folder);
             return 0;
         }
 

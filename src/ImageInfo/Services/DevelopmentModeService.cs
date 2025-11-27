@@ -52,6 +52,7 @@ namespace ImageInfo.Services
             3 => "功能3：自定义关键词标记与文件原名称提取",
             4 => "功能4：TF-IDF区分度关键词提取（功能3+TF-IDF）",
             5 => "功能5：个性化评分预测（功能4+评分）",
+            6 => "功能6：图片文件重命名（功能5+重命名）",
             _ => "功能1：不清洗正向关键词"
         };
 
@@ -191,7 +192,7 @@ namespace ImageInfo.Services
             swStep.Restart();
 
             // Mode 5: 个性化评分 (集成在功能4流程中)
-            if (scanMode == 5)
+            if (scanMode >= 5)
             {
                 Console.WriteLine("[步骤4] 计算个性化推荐评分...");
                 var swScore = System.Diagnostics.Stopwatch.StartNew();
@@ -206,6 +207,16 @@ namespace ImageInfo.Services
                 }
                 Console.WriteLine($"[计时] 步骤5-个性化评分耗时: {swScore.Elapsed.TotalSeconds:F2} 秒\n");
                 Console.WriteLine();
+
+                // Mode 5或6时，计算合并后缀文件名
+                foreach (var record in metadataList)
+                {
+                    record.MergedSuffixFileName = record.OriginalFileName 
+                                                  + record.CustomKeywords 
+                                                  + GetTfidfSuffix(record.TfidfKeywords) 
+                                                  + GetScoreSuffix(record.PredictedScore) 
+                                                  + "." + record.FileFormat.ToLowerInvariant();
+                }
             }
         }
 
@@ -218,7 +229,43 @@ namespace ImageInfo.Services
         if (!string.IsNullOrEmpty(reportPath) && File.Exists(reportPath))
         {
             Console.WriteLine($"✓ 报告已生成: {reportPath}\n");
-            Console.WriteLine("[步骤4] 自动打开报告...");
+
+            // 功能6: 文件重命名逻辑
+            if (scanMode == 6)
+            {
+                Console.WriteLine("[步骤5] 执行文件重命名...");
+                var swRename = System.Diagnostics.Stopwatch.StartNew();
+                int renamedCount = 0;
+                foreach (var record in metadataList)
+                {
+                    // 获取原始文件名 (带扩展名)
+                    string originalFullPath = record.FilePath;
+                    string originalFileNameWithExtension = record.FileName;
+
+                    // 构建新的文件名 (带扩展名)
+                    string newFileNameWithExtension = record.MergedSuffixFileName;
+
+                    // 如果文件名不同，则进行重命名
+                    if (!string.Equals(originalFileNameWithExtension, newFileNameWithExtension, StringComparison.OrdinalIgnoreCase))
+                    {
+                        string newFullPath = Path.Combine(Path.GetDirectoryName(originalFullPath)!, newFileNameWithExtension);
+                        try
+                        {
+                            File.Move(originalFullPath, newFullPath);
+                            renamedCount++;
+                            Console.WriteLine($"  ✓ 重命名: \"{originalFileNameWithExtension}\" -> \"{newFileNameWithExtension}\"");
+                        }
+                        catch (Exception ex)
+                        {
+                            Console.WriteLine($"  ✗ 重命名失败 \"{originalFileNameWithExtension}\" -> \"{newFileNameWithExtension}\": {ex.Message}");
+                        }
+                    }
+                }
+                Console.WriteLine($"[计时] 步骤5-文件重命名耗时: {swRename.Elapsed.TotalSeconds:F2} 秒\n");
+                Console.WriteLine($"✓ 共重命名 {renamedCount} 个文件。\n");
+            }
+
+            Console.WriteLine("[步骤6] 自动打开报告...");
             try
             {
                 System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
@@ -286,6 +333,21 @@ namespace ImageInfo.Services
 
             // 执行功能4完整流程，然后添加评分列
             RunScan(folder, scanMode: 5);
+        }
+
+        /// <summary>
+        /// 扫描模式6：图片文件重命名
+        /// 在功能5（个性化评分预测）的基础上，增加图片文件重命名功能
+        /// </summary>
+        public static void RunScanMode6(string folder)
+        {
+            Console.WriteLine("═══════════════════════════════════════════════════");
+            Console.WriteLine("   功能6：图片文件重命名功能");
+            Console.WriteLine("   (在功能5基础上增加重命名功能)");
+            Console.WriteLine("═══════════════════════════════════════════════════\n");
+
+            // 执行功能5完整流程，然后进行重命名
+            RunScan(folder, scanMode: 6);
         }
 
         /// <summary>
@@ -550,7 +612,8 @@ namespace ImageInfo.Services
                         2 => new[] { "文件名", "文件绝对路径", "文件所在文件夹路径", "格式", "创建时间", "Prompt", "NegativePrompt", "Model", "ModelHash", "Seed", "Sampler", "其他信息", "完整信息", "提取方法", "正向词核心词提取" },
                         3 => new[] { "文件名", "文件绝对路径", "文件所在文件夹路径", "格式", "创建时间", "Prompt", "NegativePrompt", "Model", "ModelHash", "Seed", "Sampler", "其他信息", "完整信息", "提取方法", "正向词核心词提取", "文件原名称", "自定义关键词后缀" },
                         4 => new[] { "文件名", "文件绝对路径", "文件所在文件夹路径", "格式", "创建时间", "Prompt", "NegativePrompt", "Model", "ModelHash", "Seed", "Sampler", "其他信息", "完整信息", "提取方法", "正向词核心词提取", "文件原名称", "自定义关键词后缀", "TF-IDF关键词(Top10)", "TF-IDF关键词(Top10)后缀" },
-                        5 => new[] { "文件名", "文件绝对路径", "文件所在文件夹路径", "格式", "创建时间", "Prompt", "NegativePrompt", "Model", "ModelHash", "Seed", "Sampler", "其他信息", "完整信息", "提取方法", "正向词核心词提取", "文件原名称", "自定义关键词后缀", "TF-IDF关键词(Top10)", "TF-IDF关键词(Top10)后缀", "文件夹默认分", "推荐预估分", "推荐预估分后缀" },
+                        5 => new[] { "文件名", "文件绝对路径", "文件所在文件夹路径", "格式", "创建时间", "Prompt", "NegativePrompt", "Model", "ModelHash", "Seed", "Sampler", "其他信息", "完整信息", "提取方法", "正向词核心词提取", "文件原名称", "自定义关键词后缀", "TF-IDF关键词(Top10)", "TF-IDF关键词(Top10)后缀", "文件夹默认分", "推荐预估分", "推荐预估分后缀", "合并后缀文件名" },
+                        6 => new[] { "文件名", "文件绝对路径", "文件所在文件夹路径", "格式", "创建时间", "Prompt", "NegativePrompt", "Model", "ModelHash", "Seed", "Sampler", "其他信息", "完整信息", "提取方法", "正向词核心词提取", "文件原名称", "自定义关键词后缀", "TF-IDF关键词(Top10)", "TF-IDF关键词(Top10)后缀", "文件夹默认分", "推荐预估分", "推荐预估分后缀", "合并后缀文件名" },
                         _ => new[] { "文件名", "文件绝对路径", "文件所在文件夹路径", "格式", "创建时间", "Prompt", "NegativePrompt", "Model", "ModelHash", "Seed", "Sampler", "其他信息", "完整信息", "提取方法" }
                     };
                     
@@ -598,7 +661,7 @@ namespace ImageInfo.Services
                             worksheet.Cell(row, 18).Value = record.TfidfKeywords;
                             worksheet.Cell(row, 19).Value = GetTfidfSuffix(record.TfidfKeywords);
                         }
-                        else if (scanMode == 5)
+                        else if (scanMode == 5 || scanMode == 6)
                         {
                             worksheet.Cell(row, 15).Value = record.CorePositivePrompt;
                             worksheet.Cell(row, 16).Value = record.OriginalFileName;
@@ -608,6 +671,7 @@ namespace ImageInfo.Services
                             worksheet.Cell(row, 20).Value = record.FolderMatchScore;
                             worksheet.Cell(row, 21).Value = record.PredictedScore;
                             worksheet.Cell(row, 22).Value = GetScoreSuffix(record.PredictedScore);
+                            worksheet.Cell(row, 23).Value = record.MergedSuffixFileName;
                         }
                         
                         row++;
@@ -638,23 +702,6 @@ namespace ImageInfo.Services
                         worksheet.Column(22).Width = 18; // 推荐预估分后缀列
                     }
                     
-                    // 辅助函数：将推荐预估分转为@@@评分${分数}格式
-                    static string GetScoreSuffix(double score)
-                    {
-                        return $"@@@评分{Math.Round(score)}";
-                    }
-                    
-                    // 辅助函数：将TF-IDF关键词(Top10)转为___tag___格式
-                    static string GetTfidfSuffix(string tfidfKeywords)
-                    {
-                        if (string.IsNullOrWhiteSpace(tfidfKeywords)) return string.Empty;
-                        var tags = tfidfKeywords.Split('|')
-                            .Select(s => s.Trim().Split('(')[0])
-                            .Where(tag => !string.IsNullOrWhiteSpace(tag))
-                            .Select(tag => $"___{tag}___");
-                        return string.Join("", tags);
-                    }
-
                     // 添加摘要页
                     var summary = workbook.Worksheets.Add("摘要");
                     string summaryTitle = scanMode switch
@@ -731,6 +778,21 @@ namespace ImageInfo.Services
             }
         }
 
+        private static string GetScoreSuffix(double score)
+        {
+            return $"@@@评分{Math.Round(score)}";
+        }
+
+        private static string GetTfidfSuffix(string tfidfKeywords)
+        {
+            if (string.IsNullOrWhiteSpace(tfidfKeywords)) return string.Empty;
+            var tags = tfidfKeywords.Split('|')
+                .Select(s => s.Trim().Split('(')[0])
+                .Where(tag => !string.IsNullOrWhiteSpace(tag))
+                .Select(tag => $"___{tag}___");
+            return string.Join("", tags);
+        }
+
         #endregion
     }
 
@@ -761,5 +823,6 @@ namespace ImageInfo.Services
         public double FolderMatchScore { get; set; } = 50.0;      // 文件夹默认匹配分
         public double PredictedScore { get; set; } = 50.0;        // 个性化推荐预估评分
         public double TargetScore { get; set; } = 50.0;           // 内部使用：训练目标分数
+        public string MergedSuffixFileName { get; set; } = string.Empty;
     }
 }
