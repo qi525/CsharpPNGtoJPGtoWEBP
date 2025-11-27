@@ -253,7 +253,7 @@ namespace ImageInfo.Services
                         {
                             File.Move(originalFullPath, newFullPath);
                             renamedCount++;
-                            Console.WriteLine($"  ✓ 重命名: \"{originalFileNameWithExtension}\" -> \"{newFileNameWithExtension}\"");
+                            // Console.WriteLine($"  ✓ 重命名: \"{originalFileNameWithExtension}\" -> \"{newFileNameWithExtension}\"");
                         }
                         catch (Exception ex)
                         {
