@@ -5,6 +5,7 @@ using System.Linq;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using ImageInfo.Models;
+using ImageInfo.Resources;
 
 namespace ImageInfo.Services
 {
@@ -35,22 +36,55 @@ namespace ImageInfo.Services
         // 新主入口，完全对齐Python方案，手动实现岭回归
         public async Task<bool> ScoreMetadataRecordsSupervisedAsync(List<MetadataRecord> records, string vocabColumnName = "TfidfKeywords")
         {
-            // 1. （已移除CSV导出，直接内存处理）
             try
             {
-                // 构造DataTable和CSV导出已移除，直接内存处理
+                // 1. 准备输入数据给 ScorerCliCs
+                var scorerInput = records.Select(r => (
+                    Path: r.FilePath, // Path用于从文件名中提取目标分数
+                    Feature: GetPropertyValue(r, vocabColumnName) ?? string.Empty // Feature用于ML.NET模型训练和预测
+                )).ToList();
 
-                // 2. 已移除Python scorer_cli.py调用，直接用C#原生实现
+                // 2. 调用ScorerCliCs进行评分
+                var scoringResults = ScorerCliCs.RunFromItems(scorerInput);
 
-                // 3. 已移除输出CSV读取，直接内存写回PredictedScore
+                // 3. 将评分结果写回MetadataRecord
+                for (int i = 0; i < records.Count; i++)
+                {
+                    records[i].TargetScore = scoringResults[i].TargetScore; // 保存目标分
+                    records[i].PredictedScore = scoringResults[i].PredictedScore; // 保存预测分
+                }
+                
+                // 4. 计算文件夹默认匹配分 (此逻辑保持不变，因为它独立于ML.NET预测)
+                foreach (var record in records)
+                {
+                    record.FolderMatchScore = ExtractFolderScore(record.FilePath);
+                }
+
                 return true;
+            }
+            catch (InvalidOperationException ex)
+            {
+                Console.WriteLine($"⚠️  评分处理跳过: {ex.Message}");
+                Console.WriteLine("  可能原因是训练样本不足，所有文件将获得默认分数。");
+                // 确保即使跳过，PredictedScore也被设置为默认值，以避免报告中出现空值
+                foreach (var record in records)
+                {
+                    record.PredictedScore = _config.DefaultNeutralScore;
+                    record.FolderMatchScore = ExtractFolderScore(record.FilePath);
+                }
+                return false;
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[功能5] Python评分异常：{ex.Message}");
+                Console.WriteLine($"[功能5] C#原生评分异常：{ex.Message}");
+                // 出现其他异常时，同样确保PredictedScore被设置为默认值
+                foreach (var record in records)
+                {
+                    record.PredictedScore = _config.DefaultNeutralScore;
+                    record.FolderMatchScore = ExtractFolderScore(record.FilePath);
+                }
                 return false;
             }
-            finally { }
         }
 
         /// <summary>
