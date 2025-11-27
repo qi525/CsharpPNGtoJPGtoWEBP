@@ -548,9 +548,9 @@ namespace ImageInfo.Services
                     var headers = scanMode switch
                     {
                         2 => new[] { "文件名", "文件绝对路径", "文件所在文件夹路径", "格式", "创建时间", "Prompt", "NegativePrompt", "Model", "ModelHash", "Seed", "Sampler", "其他信息", "完整信息", "提取方法", "正向词核心词提取" },
-                        3 => new[] { "文件名", "文件绝对路径", "文件所在文件夹路径", "格式", "创建时间", "Prompt", "NegativePrompt", "Model", "ModelHash", "Seed", "Sampler", "其他信息", "完整信息", "提取方法", "正向词核心词提取", "文件原名称", "自定义关键词" },
-                        4 => new[] { "文件名", "文件绝对路径", "文件所在文件夹路径", "格式", "创建时间", "Prompt", "NegativePrompt", "Model", "ModelHash", "Seed", "Sampler", "其他信息", "完整信息", "提取方法", "正向词核心词提取", "文件原名称", "自定义关键词", "TF-IDF关键词(Top10)" },
-                        5 => new[] { "文件名", "文件绝对路径", "文件所在文件夹路径", "格式", "创建时间", "Prompt", "NegativePrompt", "Model", "ModelHash", "Seed", "Sampler", "其他信息", "完整信息", "提取方法", "正向词核心词提取", "文件原名称", "自定义关键词", "TF-IDF关键词(Top10)", "文件夹默认分", "推荐预估分" },
+                        3 => new[] { "文件名", "文件绝对路径", "文件所在文件夹路径", "格式", "创建时间", "Prompt", "NegativePrompt", "Model", "ModelHash", "Seed", "Sampler", "其他信息", "完整信息", "提取方法", "正向词核心词提取", "文件原名称", "自定义关键词后缀" },
+                        4 => new[] { "文件名", "文件绝对路径", "文件所在文件夹路径", "格式", "创建时间", "Prompt", "NegativePrompt", "Model", "ModelHash", "Seed", "Sampler", "其他信息", "完整信息", "提取方法", "正向词核心词提取", "文件原名称", "自定义关键词后缀", "TF-IDF关键词(Top10)", "TF-IDF关键词(Top10)后缀" },
+                        5 => new[] { "文件名", "文件绝对路径", "文件所在文件夹路径", "格式", "创建时间", "Prompt", "NegativePrompt", "Model", "ModelHash", "Seed", "Sampler", "其他信息", "完整信息", "提取方法", "正向词核心词提取", "文件原名称", "自定义关键词后缀", "TF-IDF关键词(Top10)", "TF-IDF关键词(Top10)后缀", "文件夹默认分", "推荐预估分", "推荐预估分后缀" },
                         _ => new[] { "文件名", "文件绝对路径", "文件所在文件夹路径", "格式", "创建时间", "Prompt", "NegativePrompt", "Model", "ModelHash", "Seed", "Sampler", "其他信息", "完整信息", "提取方法" }
                     };
                     
@@ -596,6 +596,7 @@ namespace ImageInfo.Services
                             worksheet.Cell(row, 16).Value = record.OriginalFileName;
                             worksheet.Cell(row, 17).Value = record.CustomKeywords;
                             worksheet.Cell(row, 18).Value = record.TfidfKeywords;
+                            worksheet.Cell(row, 19).Value = GetTfidfSuffix(record.TfidfKeywords);
                         }
                         else if (scanMode == 5)
                         {
@@ -603,8 +604,10 @@ namespace ImageInfo.Services
                             worksheet.Cell(row, 16).Value = record.OriginalFileName;
                             worksheet.Cell(row, 17).Value = record.CustomKeywords;
                             worksheet.Cell(row, 18).Value = record.TfidfKeywords;
-                            worksheet.Cell(row, 19).Value = record.FolderMatchScore;
-                            worksheet.Cell(row, 20).Value = record.PredictedScore;
+                            worksheet.Cell(row, 19).Value = GetTfidfSuffix(record.TfidfKeywords);
+                            worksheet.Cell(row, 20).Value = record.FolderMatchScore;
+                            worksheet.Cell(row, 21).Value = record.PredictedScore;
+                            worksheet.Cell(row, 22).Value = GetScoreSuffix(record.PredictedScore);
                         }
                         
                         row++;
@@ -621,14 +624,35 @@ namespace ImageInfo.Services
                     if (scanMode >= 3)
                     {
                         worksheet.Column(16).Width = 20; // 文件原名称列
-                        worksheet.Column(17).Width = 25; // 自定义关键词列
+                        worksheet.Column(17).Width = 25; // 自定义关键词后缀列
                     }
                     if (scanMode >= 4)
+                    {
                         worksheet.Column(18).Width = 30; // TF-IDF关键词列
+                        worksheet.Column(19).Width = 40; // TF-IDF关键词后缀列
+                    }
                     if (scanMode >= 5)
                     {
-                        worksheet.Column(19).Width = 15; // 文件夹默认分列
-                        worksheet.Column(20).Width = 15; // 推荐预估分列
+                        worksheet.Column(20).Width = 15; // 文件夹默认分列
+                        worksheet.Column(21).Width = 15; // 推荐预估分列
+                        worksheet.Column(22).Width = 18; // 推荐预估分后缀列
+                    }
+                    
+                    // 辅助函数：将推荐预估分转为@@@评分${分数}格式
+                    static string GetScoreSuffix(double score)
+                    {
+                        return $"@@@评分{Math.Round(score)}";
+                    }
+                    
+                    // 辅助函数：将TF-IDF关键词(Top10)转为___tag___格式
+                    static string GetTfidfSuffix(string tfidfKeywords)
+                    {
+                        if (string.IsNullOrWhiteSpace(tfidfKeywords)) return string.Empty;
+                        var tags = tfidfKeywords.Split('|')
+                            .Select(s => s.Trim().Split('(')[0])
+                            .Where(tag => !string.IsNullOrWhiteSpace(tag))
+                            .Select(tag => $"___{tag}___");
+                        return string.Join("", tags);
                     }
 
                     // 添加摘要页
