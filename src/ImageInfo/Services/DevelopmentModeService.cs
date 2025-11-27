@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
+using System.Threading.Tasks;
 using ImageInfo.Models;
 using ImageMagick;
 using ClosedXML.Excel;
@@ -50,6 +51,7 @@ namespace ImageInfo.Services
             2 => "功能2：清洗正向关键词",
             3 => "功能3：自定义关键词标记与文件原名称提取",
             4 => "功能4：TF-IDF区分度关键词提取（功能3+TF-IDF）",
+            5 => "功能5：个性化评分预测（功能4+评分）",
             _ => "功能1：不清洗正向关键词"
         };
 
@@ -57,8 +59,11 @@ namespace ImageInfo.Services
         Console.WriteLine($"扫描文件夹: {folder}\n");
 
         var startTime = DateTime.Now;
+        var swStep = System.Diagnostics.Stopwatch.StartNew();
         var allFiles = FileScanner.GetImageFiles(folder).ToList();
         Console.WriteLine($"找到 {allFiles.Count} 个图片文件\n");
+        Console.WriteLine($"[计时] 步骤1-文件收集耗时: {swStep.Elapsed.TotalSeconds:F2} 秒\n");
+        swStep.Restart();
 
         if (allFiles.Count == 0)
         {
@@ -148,6 +153,8 @@ namespace ImageInfo.Services
         });
 
         Console.WriteLine($"已处理: {processed}/{allFiles.Count}     \n");
+        Console.WriteLine($"[计时] 步骤2-元数据读取耗时: {swStep.Elapsed.TotalSeconds:F2} 秒\n");
+        swStep.Restart();
 
         // Mode 4: 构建全局TF-IDF语料库并计算每张图片的关键词
         if (scanMode >= 4 && tfidfService != null && allPrompts != null)
@@ -160,6 +167,8 @@ namespace ImageInfo.Services
             Console.WriteLine($"  词汇量: {stats.VocabSize}");
             Console.WriteLine($"  平均词数/文档: {stats.AvgWordsPerDoc:F2}");
             Console.WriteLine($"✓ 语料库构建完成\n");
+            Console.WriteLine($"[计时] 步骤3-TF-IDF语料库构建耗时: {swStep.Elapsed.TotalSeconds:F2} 秒\n");
+            swStep.Restart();
 
             Console.WriteLine("[步骤3-TF-IDF] 计算TF-IDF关键词...");
             for (int i = 0; i < metadataList.Count; i++)
@@ -178,10 +187,33 @@ namespace ImageInfo.Services
                     Console.Write($"已计算: {i + 1}/{metadataList.Count}\r");
             }
             Console.WriteLine($"已计算: {metadataList.Count}/{metadataList.Count}     \n");
+            Console.WriteLine($"[计时] 步骤4-TF-IDF关键词计算耗时: {swStep.Elapsed.TotalSeconds:F2} 秒\n");
+            swStep.Restart();
+
+            // Mode 5: 个性化评分 (集成在功能4流程中)
+            if (scanMode == 5)
+            {
+                Console.WriteLine("[步骤4] 计算个性化推荐评分...");
+                var swScore = System.Diagnostics.Stopwatch.StartNew();
+                try
+                {
+                    Task.Run(async () => await RunImageScorerAsync(metadataList, "TfidfKeywords")).Wait();
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"⚠️  评分处理出错: {ex.Message}");
+                    Console.WriteLine("  将继续生成报告，但不包含评分数据");
+                }
+                Console.WriteLine($"[计时] 步骤5-个性化评分耗时: {swScore.Elapsed.TotalSeconds:F2} 秒\n");
+                Console.WriteLine();
+            }
         }
 
         Console.WriteLine("[步骤2] 生成 Excel 报告...");
+        var swReport = System.Diagnostics.Stopwatch.StartNew();
         string reportPath = GenerateExcelReport(metadataList, folder, scanMode);
+
+        Console.WriteLine($"[计时] 步骤6-Excel报告生成耗时: {swReport.Elapsed.TotalSeconds:F2} 秒\n");
 
         if (!string.IsNullOrEmpty(reportPath) && File.Exists(reportPath))
         {
@@ -208,8 +240,30 @@ namespace ImageInfo.Services
         }
 
         var elapsed = DateTime.Now - startTime;
-        Console.WriteLine($"\n耗时: {elapsed.TotalSeconds:F2} 秒");
+        Console.WriteLine($"\n总耗时: {elapsed.TotalSeconds:F2} 秒");
     }        /// <summary>
+        /// 执行图片评分异步任务
+        /// </summary>
+        private static async Task RunImageScorerAsync(List<MetadataRecord> records, string vocabColumnName = "TfidfKeywords")
+        {
+            var config = new ImageScorerConfig();
+            var scorer = new ImageScorerService(config);
+
+            Console.WriteLine("🚀 开始评分处理...\n");
+            bool success = await scorer.ScoreMetadataRecordsSupervisedAsync(records, vocabColumnName);
+
+            if (!success)
+            {
+                Console.WriteLine("❌ 评分处理失败，请检查日志");
+                return;
+            }
+
+            Console.WriteLine("\n📊 处理完成！新增列：");
+            Console.WriteLine($"   • {config.FolderMatchScoreColumn}");
+            Console.WriteLine($"   • {config.PredictedScoreColumn}");
+        }
+
+        /// <summary>
         /// 扫描模式4：TF-IDF区分度关键词提取（Mode3的扩展）
         /// </summary>
         public static void RunScanMode4(string folder)
@@ -219,12 +273,19 @@ namespace ImageInfo.Services
 
         /// <summary>
         /// 扫描模式5：个性化评分预测
+        /// 在功能4（TF-IDF）的基础上，添加两列评分数据
+        /// 1. 文件夹默认匹配分 (基于RATING_MAP关键词匹配)
+        /// 2. 个性化推荐预估评分 (基于TF-IDF + Ridge回归算法)
         /// </summary>
         public static void RunScanMode5(string folder)
         {
-            Console.WriteLine("🔄 功能5：个性化评分预测");
-            Console.WriteLine("⏳ 功能待实现...\n");
-            // TODO: 实现个性化评分预测逻辑
+            Console.WriteLine("═══════════════════════════════════════════════════");
+            Console.WriteLine("   功能5：个性化推荐评分系统");
+            Console.WriteLine("   (在功能4基础上添加两列评分数据)");
+            Console.WriteLine("═══════════════════════════════════════════════════\n");
+
+            // 执行功能4完整流程，然后添加评分列
+            RunScan(folder, scanMode: 5);
         }
 
         /// <summary>
@@ -473,6 +534,7 @@ namespace ImageInfo.Services
                     2 => "Mode2_Cleaned",
                     3 => "Mode3_Tagger",
                     4 => "Mode4_TFIDF",
+                    5 => "Mode5_Scoring",
                     _ => "Mode1_NoClean"
                 };
                 string reportName = $"metadata_scan_{modeLabel}_{DateTime.Now:yyyy-MM-dd_HH-mm-ss}.xlsx";
@@ -488,6 +550,7 @@ namespace ImageInfo.Services
                         2 => new[] { "文件名", "文件绝对路径", "文件所在文件夹路径", "格式", "创建时间", "Prompt", "NegativePrompt", "Model", "ModelHash", "Seed", "Sampler", "其他信息", "完整信息", "提取方法", "正向词核心词提取" },
                         3 => new[] { "文件名", "文件绝对路径", "文件所在文件夹路径", "格式", "创建时间", "Prompt", "NegativePrompt", "Model", "ModelHash", "Seed", "Sampler", "其他信息", "完整信息", "提取方法", "正向词核心词提取", "文件原名称", "自定义关键词" },
                         4 => new[] { "文件名", "文件绝对路径", "文件所在文件夹路径", "格式", "创建时间", "Prompt", "NegativePrompt", "Model", "ModelHash", "Seed", "Sampler", "其他信息", "完整信息", "提取方法", "正向词核心词提取", "文件原名称", "自定义关键词", "TF-IDF关键词(Top10)" },
+                        5 => new[] { "文件名", "文件绝对路径", "文件所在文件夹路径", "格式", "创建时间", "Prompt", "NegativePrompt", "Model", "ModelHash", "Seed", "Sampler", "其他信息", "完整信息", "提取方法", "正向词核心词提取", "文件原名称", "自定义关键词", "TF-IDF关键词(Top10)", "文件夹默认分", "推荐预估分" },
                         _ => new[] { "文件名", "文件绝对路径", "文件所在文件夹路径", "格式", "创建时间", "Prompt", "NegativePrompt", "Model", "ModelHash", "Seed", "Sampler", "其他信息", "完整信息", "提取方法" }
                     };
                     
@@ -534,6 +597,15 @@ namespace ImageInfo.Services
                             worksheet.Cell(row, 17).Value = record.CustomKeywords;
                             worksheet.Cell(row, 18).Value = record.TfidfKeywords;
                         }
+                        else if (scanMode == 5)
+                        {
+                            worksheet.Cell(row, 15).Value = record.CorePositivePrompt;
+                            worksheet.Cell(row, 16).Value = record.OriginalFileName;
+                            worksheet.Cell(row, 17).Value = record.CustomKeywords;
+                            worksheet.Cell(row, 18).Value = record.TfidfKeywords;
+                            worksheet.Cell(row, 19).Value = record.FolderMatchScore;
+                            worksheet.Cell(row, 20).Value = record.PredictedScore;
+                        }
                         
                         row++;
                     }
@@ -553,6 +625,11 @@ namespace ImageInfo.Services
                     }
                     if (scanMode >= 4)
                         worksheet.Column(18).Width = 30; // TF-IDF关键词列
+                    if (scanMode >= 5)
+                    {
+                        worksheet.Column(19).Width = 15; // 文件夹默认分列
+                        worksheet.Column(20).Width = 15; // 推荐预估分列
+                    }
 
                     // 添加摘要页
                     var summary = workbook.Worksheets.Add("摘要");
@@ -561,6 +638,7 @@ namespace ImageInfo.Services
                         2 => "扫描摘要 (已清洗)",
                         3 => "扫描摘要 (关键词标记)",
                         4 => "扫描摘要 (TF-IDF分析)",
+                        5 => "扫描摘要 (个性化评分)",
                         _ => "扫描摘要"
                     };
                     summary.Cell(1, 1).Value = summaryTitle;
@@ -581,9 +659,16 @@ namespace ImageInfo.Services
                         summary.Cell(6, 1).Value = "包含Prompt的文件:";
                         summary.Cell(6, 2).Value = records.Count(r => !string.IsNullOrEmpty(r.TfidfKeywords));
                     }
+                    else if (scanMode == 5)
+                    {
+                        summary.Cell(6, 1).Value = "包含Prompt的文件:";
+                        summary.Cell(6, 2).Value = records.Count(r => !string.IsNullOrEmpty(r.TfidfKeywords));
+                        summary.Cell(7, 1).Value = "已评分的文件:";
+                        summary.Cell(7, 2).Value = records.Count(r => r.PredictedScore > 0);
+                    }
 
                     var formatCount = records.GroupBy(r => r.FileFormat).ToDictionary(g => g.Key, g => g.Count());
-                    int summaryRow = scanMode == 4 ? 8 : 7;
+                    int summaryRow = scanMode == 4 ? 8 : (scanMode == 5 ? 9 : 7);
                     summary.Cell(summaryRow, 1).Value = "格式统计";
                     summary.Cell(summaryRow, 1).Style.Font.Bold = true;
                     summaryRow++;
@@ -647,5 +732,10 @@ namespace ImageInfo.Services
         public string OriginalFileName { get; set; } = string.Empty;
         public string CustomKeywords { get; set; } = string.Empty;
         public string TfidfKeywords { get; set; } = string.Empty;
+        
+        // 功能5：评分相关字段
+        public double FolderMatchScore { get; set; } = 50.0;      // 文件夹默认匹配分
+        public double PredictedScore { get; set; } = 50.0;        // 个性化推荐预估评分
+        public double TargetScore { get; set; } = 50.0;           // 内部使用：训练目标分数
     }
 }
