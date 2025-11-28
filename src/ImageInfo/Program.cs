@@ -8,24 +8,26 @@ class Program
 {
     static int Main(string[] args)
     {
-        // 检查快速启动命令行参数（--1, --2, --3, --4）
+        // 检查快速启动命令行参数（--1, --2, ... --7）
         if (args.Length > 0 && args[0].StartsWith("--"))
         {
             string quickLaunch = args[0].Substring(2).ToLowerInvariant();
             string folder = @"C:\stable-diffusion-webui\outputs\txt2img-images";
-            
-            return quickLaunch switch
+
+            switch (quickLaunch)
             {
-                "1" => LaunchFunction(folder, "scan", "功能1：不清洗正向关键词"),
-                "2" => LaunchFunction(folder, "scan2", "功能2：清洗正向关键词"),
-                "3" => LaunchFunction(folder, "tfidf", "功能3：自定义关键词标记"),
-                "4" => LaunchFunction(folder, "scorer", "功能4：TF-IDF关键词提取"),
-                "5" => LaunchFunction(folder, "predict", "功能5：个性化评分预测"),
-                "6" => LaunchFunction(folder, "rename", "功能6：图片文件重命名"),
-                "21" => LaunchFunction(folder, "verify1", "功能21：同时运行三种转换模式"),
-                "22" => LaunchFunction(folder, "mode4", "功能22：选择性转换"),
-                _ => RunNormalMode(args)
-            };
+                case "1": return LaunchFunction(folder, "scan", "功能1：不清洗正向关键词");
+                case "2": return LaunchFunction(folder, "scan2", "功能2：清洗正向关键词");
+                case "3": return LaunchFunction(folder, "tfidf", "功能3：自定义关键词标记");
+                case "4": return LaunchFunction(folder, "scorer", "功能4：TF-IDF关键词提取");
+                case "5": return LaunchFunction(folder, "predict", "功能5：个性化评分预测");
+                case "6": return LaunchFunction(folder, "rename", "功能6：图片文件重命名");
+                case "21": return LaunchFunction(folder, "verify1", "功能21：同时运行三种转换模式");
+                case "22": return LaunchFunction(folder, "mode4", "功能22：选择性转换");
+                case "7": return LaunchFunction(folder, "mode7", "功能7：分析词频");
+                default:
+                    return RunNormalMode(args);
+            }
         }
 
         // 读取模式选择：开发模式或生产模式
@@ -74,6 +76,12 @@ class Program
 
     private static int HandleDevelopmentMode(string folder, string? devMode)
     {
+        if (devMode?.ToLowerInvariant() == "mode7")
+        {
+            Console.WriteLine("开发功能7： [开发模式-分析词频] 统计核心正向词词频\n");
+            ImageInfo.Services.Mode7WordFrequencyAnalyzer.RunWordFrequencyAnalysis(folder);
+            return 0;
+        }
         if (devMode?.ToLowerInvariant() == "scan")
         {
             Console.WriteLine("开发功能1： [开发模式-只读模式1] 不清洗正向关键词\n");
@@ -132,6 +140,5 @@ class Program
 
         DevelopmentModeService.RunFullConversionMode(folder);
         return 0;
-
     }
 }

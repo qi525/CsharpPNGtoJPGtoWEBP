@@ -16,6 +16,50 @@ namespace ImageInfo.Services
     /// </summary>
     public static class DevelopmentModeService
     {
+        /// <summary>
+        /// 获取功能2（清洗正向关键词）后的元数据列表，供其他功能直接调用
+        /// </summary>
+        public static List<MetadataRecord> GetScan2MetadataList(string folder)
+        {
+            var allFiles = FileScanner.GetImageFiles(folder).ToList();
+            var metadataList = new List<MetadataRecord>();
+            if (allFiles.Count == 0) return metadataList;
+
+            object lockObj = new object();
+            System.Threading.Tasks.Parallel.ForEach(allFiles, new System.Threading.Tasks.ParallelOptions
+            {
+                MaxDegreeOfParallelism = Environment.ProcessorCount
+            }, filePath =>
+            {
+                try
+                {
+                    var metadata = MetadataExtractors.ReadAIMetadata(filePath);
+                    var record = new MetadataRecord
+                    {
+                        FileName = Path.GetFileName(filePath),
+                        FilePath = filePath,
+                        FileFormat = Path.GetExtension(filePath).ToUpperInvariant().TrimStart('.'),
+                        CreationTime = File.GetCreationTime(filePath).ToString("yyyy-MM-dd HH:mm:ss"),
+                        Prompt = metadata.Prompt ?? string.Empty,
+                        NegativePrompt = metadata.NegativePrompt ?? string.Empty,
+                        Model = metadata.Model ?? string.Empty,
+                        ModelHash = metadata.ModelHash ?? string.Empty,
+                        Seed = metadata.Seed ?? string.Empty,
+                        Sampler = metadata.Sampler ?? string.Empty,
+                        OtherInfo = metadata.OtherInfo ?? string.Empty,
+                        FullInfo = metadata.FullInfo ?? string.Empty,
+                        ExtractionMethod = metadata.FullInfoExtractionMethod ?? string.Empty,
+                        CorePositivePrompt = PromptCleanerService.CleanPositivePrompt(metadata.Prompt ?? string.Empty)
+                    };
+                    lock (lockObj)
+                    {
+                        metadataList.Add(record);
+                    }
+                }
+                catch { }
+            });
+            return metadataList;
+        }
     /// <summary>
     /// 统一的扫描函数入口 - 支持Mode 1/2/3
     /// Mode 1: 基础 (不清洗正向词)
