@@ -32,7 +32,7 @@ class Program
                     string outputTxt = @"C:\个人数据\pythonCode\0-SD-WEBUI_API_test\中间核心词.txt";
                     // Function8Debug.PrintImageCount 已移除
                     // 先完整执行功能2（自动生成并打开Excel）
-                    DevelopmentModeService.RunScanMode2(specialFolder, sortByCreationTime: true);
+                    DevelopmentModeService.RunScanMode2(specialFolder);
                     // 导出按创建时间降序的核心正向词到txt
                     Function8Exporter.ExportCorePositivePrompts(specialFolder, outputTxt);
                     return 0;

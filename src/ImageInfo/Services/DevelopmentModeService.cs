@@ -71,9 +71,9 @@ namespace ImageInfo.Services
         RunScan(folder, scanMode: 1);
     }
 
-    public static void RunScanMode2(string folder, bool sortByCreationTime = false)
+    public static void RunScanMode2(string folder)
     {
-        RunScan(folder, scanMode: 2, sortByCreationTime: sortByCreationTime);
+        RunScan(folder, scanMode: 2);
     }
 
     public static void RunScanMode3(string folder)
@@ -88,7 +88,7 @@ namespace ImageInfo.Services
     /// Mode 3: +文件原名称 +自定义关键词
     /// Mode 4: Mode3 + TF-IDF关键词
     /// </summary>
-    private static void RunScan(string folder, int scanMode, bool sortByCreationTime = false)
+    private static void RunScan(string folder, int scanMode)
         // ...existing code...
     {
         string modeName = scanMode switch
@@ -200,11 +200,8 @@ namespace ImageInfo.Services
 
         Console.WriteLine($"已处理: {processed}/{allFiles.Count}     \n");
         Console.WriteLine($"[计时] 步骤2-元数据读取耗时: {swStep.Elapsed.TotalSeconds:F2} 秒\n");
-                // 只在功能8时按创建时间降序排序
-                if (sortByCreationTime)
-                {
-                    metadataList = metadataList.OrderByDescending(m => DateTime.TryParse(m.CreationTime, out var dt) ? dt : DateTime.MinValue).ToList();
-                }
+                // 全局：所有功能都按创建时间降序排序（最近的在前）
+                metadataList = metadataList.OrderByDescending(m => DateTime.TryParse(m.CreationTime, out var dt) ? dt : DateTime.MinValue).ToList();
         swStep.Restart();
 
         // Mode 4: 构建全局TF-IDF语料库并计算每张图片的关键词

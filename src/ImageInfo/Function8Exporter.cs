@@ -13,10 +13,8 @@ namespace ImageInfo
         public static void ExportCorePositivePrompts(string folder, string outputTxtPath)
         {
             var metaList = DevelopmentModeService.GetScan2MetadataList(folder);
-            // 按创建时间降序排列（最近的在前）
-            var sorted = metaList.OrderByDescending(m => DateTime.TryParse(m.CreationTime, out var dt) ? dt : DateTime.MinValue).ToList();
-            // 每张图片一行，仅核心正向词
-            var lines = sorted.Select(m => (m.CorePositivePrompt ?? string.Empty).Trim()).ToList();
+            // 每张图片一行，仅核心正向词（顺序已由全局控制）
+            var lines = metaList.Select(m => (m.CorePositivePrompt ?? string.Empty).Trim()).ToList();
             File.WriteAllLines(outputTxtPath, lines);
             Console.WriteLine($"已导出 {lines.Count} 条图片核心正向词到：{outputTxtPath}");
         }
