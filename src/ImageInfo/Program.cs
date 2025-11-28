@@ -25,6 +25,10 @@ class Program
                 case "21": return LaunchFunction(folder, "verify1", "功能21：同时运行三种转换模式");
                 case "22": return LaunchFunction(folder, "mode4", "功能22：选择性转换");
                 case "7": return LaunchFunction(folder, "mode7", "功能7：分析词频");
+                case "8":
+                    // 功能8：只扫描特殊：98分目录，逻辑同功能2
+                    string specialFolder = @"C:\stable-diffusion-webui\outputs\txt2img-images\特殊：98分";
+                    return LaunchFunction(specialFolder, "scan2", "功能8：清洗正向关键词（仅特殊：98分）");
                 default:
                     return RunNormalMode(args);
             }
