@@ -51,9 +51,9 @@ glow_skin, glow_face,
 (artist\:luminous:1.2), updo, 
 detailed_shadow, best_shadow, 
 beautiful_detailed_starry_sky, cherry_blossoms, 
+light_particles, no_backlighting, no_sidelighting, 
+no_backlighting, no_sidelighting, 
 no_shadow, 
-
-
 
 
 
