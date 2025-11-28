@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using ImageInfo.Services;
+using ImageInfo;
 
 namespace ImageInfo;
 
@@ -26,9 +27,15 @@ class Program
                 case "22": return LaunchFunction(folder, "mode4", "功能22：选择性转换");
                 case "7": return LaunchFunction(folder, "mode7", "功能7：分析词频");
                 case "8":
-                    // 功能8：只扫描特殊：98分目录，逻辑同功能2
+                    // 功能8：只扫描特殊：98分目录，正向词核心词导出到指定txt
                     string specialFolder = @"C:\stable-diffusion-webui\outputs\txt2img-images\特殊：98分";
-                    return LaunchFunction(specialFolder, "scan2", "功能8：清洗正向关键词（仅特殊：98分）");
+                    string outputTxt = @"C:\个人数据\pythonCode\0-SD-WEBUI_API_test\中间核心词.txt";
+                    // Function8Debug.PrintImageCount 已移除
+                    // 先完整执行功能2（自动生成并打开Excel）
+                    DevelopmentModeService.RunScanMode2(specialFolder, sortByCreationTime: true);
+                    // 导出按创建时间降序的核心正向词到txt
+                    Function8Exporter.ExportCorePositivePrompts(specialFolder, outputTxt);
+                    return 0;
                 default:
                     return RunNormalMode(args);
             }
