@@ -44,6 +44,7 @@ newest, 2025, (artist\:toosaka_asagi:1.2), novel_illustration, (artist\:torino_a
 artist\:hito_komoru, artist\:akeyama_kitsune, artist\:fi-san, (artist\:rourou_\(been\):1.2), artist\:gweda, artist\:fuzichoco, artist\:shanguier, artist\:anmi, (artist\:missile228:1.2), 
 (artist\:atdan:1.7), artist\:iizuki_tasuku, artist\:piromizu, artist\:binggong_asylum, artist\:sheya, artist\:dishwasher1910, (artist\:omone_hokoma_agm:1.2), artist\:puuzaki_puuna, 
 artist\:m-da_s-tarou, artist\:cutesexyrobutts, artist\:houkisei, artist\:sora_72-iro, artist\:machi_\(machi0910\), artist\:mochirong, 
+(artist\:m-da_s-tarou:1.2), artist\:cutesexyrobutts, artist\:houkisei, artist\:sora_72-iro, artist\:machi_\(machi0910\), artist\:mochirong, 
 see-through, see-through_clothes, transparent, 
 front_light, frontlight, flat_lighting, soft_light, front_lighting, even_lighting, studio_lighting, key_light, fill_light, no_backlighting, no_sidelighting, 
 beautiful_detailed_glow, detailed_light, shine, luminous, luminous_particles, light_particles, lighting_particle, 
@@ -56,7 +57,7 @@ no_backlighting, no_sidelighting,
 no_shadow, 
 (artist\:usashiro_mani:1.5), sparkle, 
 flat_color, anime_coloring, 
-
+hydrangea, white_border, looking_back, 
 
 
 
