@@ -243,35 +243,32 @@ namespace ImageAnalyzerCore
         }
 
         /// <summary>
-        /// [子函数 A] 检查图片文件/文件夹目录路径是否被配置为受保护路径（包含"超","精","特"），不允许自动移动。
+        /// [子函数 A] 检查路径中所有目录名是否包含保护关键词，递归检查，确保多层级保护。
         /// </summary>
         private static bool IsPathProtected(string path, bool isDirectory = false)
         {
             if (string.IsNullOrWhiteSpace(path)) return false;
-            
-            string directoryName;
 
-            if (isDirectory)
+            string? dirPath = path;
+            if (!isDirectory)
             {
-                // 【修正点 3】如果传入的是目录，直接获取其名称进行检查
-                directoryName = new DirectoryInfo(path).Name;
+                // 如果是文件，获取其所在目录
+                dirPath = Path.GetDirectoryName(path);
             }
-            else
-            { 
-                // 【修正点 3】如果传入的是图片文件，获取图片文件所在的目录名
-                directoryName = new DirectoryInfo(Path.GetDirectoryName(path) ?? string.Empty).Name;
-            }
-            // 【修正点 3 结束】
+            if (string.IsNullOrEmpty(dirPath)) return false;
 
-            if (string.IsNullOrEmpty(directoryName)) return false;
-
-            // 检查目录名是否包含保护关键词
-            foreach (var keyword in ProtectedKeywords)
+            // 递归检查路径中的所有目录名
+            DirectoryInfo? current = new DirectoryInfo(dirPath);
+            while (current != null && !string.IsNullOrEmpty(current.Name))
             {
-                if (directoryName.Contains(keyword))
+                foreach (var keyword in ProtectedKeywords)
                 {
-                    return true;
+                    if (current.Name.Contains(keyword))
+                    {
+                        return true;
+                    }
                 }
+                current = current.Parent;
             }
             return false;
         }
@@ -315,11 +312,19 @@ namespace ImageAnalyzerCore
                     return;
                 }
 
-                // 5. 执行移动图片文件操作
-                File.Move(sourcePath, targetPath);
+                // 5. 执行安全移动图片文件操作
+                if (ImageInfo.Services.SafeMoveProtection.CanMove(sourcePath))
+                {
+                    File.Move(sourcePath, targetPath);
+                    _statusCounts.AddOrUpdate("成功归档图片文件", 1, (key, count) => count + 1);
+                    // Console.WriteLine($"[MOVE] 成功归档: {sourcePath} -> {targetPath}"); // 移动成功日志太多，仅记录计数
+                }
+                else
+                {
+                    Console.WriteLine($"[保护] 跳过受保护文件: {sourcePath}");
+                    _statusCounts.AddOrUpdate("安全跳过 (SafeMoveProtection)", 1, (key, count) => count + 1);
+                }
                 task.Increment(1); // 【进度条更新】：使用 task.Increment(1)
-                _statusCounts.AddOrUpdate("成功归档图片文件", 1, (key, count) => count + 1);
-                // Console.WriteLine($"[MOVE] 成功归档: {sourcePath} -> {targetPath}"); // 移动成功日志太多，仅记录计数
             }
             catch (Exception ex)
             {

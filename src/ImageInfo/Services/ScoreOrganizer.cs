@@ -286,9 +286,17 @@ namespace ImageAnalyzerCore // 确保与 Program.cs 命名空间一致
                         }
                         else
                         {
-                            File.Move(filePath, targetFilePath);
-                            AppendToLogFile($"⭐ 成功移动: '{filename}' -> '{targetDirName}'"); // 日志写入文件
-                            successfulMoves++;
+                            if (ImageInfo.Services.SafeMoveProtection.CanMove(filePath))
+                            {
+                                File.Move(filePath, targetFilePath);
+                                AppendToLogFile($"⭐ 成功移动: '{filename}' -> '{targetDirName}'"); // 日志写入文件
+                                successfulMoves++;
+                            }
+                            else
+                            {
+                                Log.Warning($"[保护] 跳过受保护文件: '{filePath}'");
+                                skippedFiles++;
+                            }
                         }
                     }
                     catch (Exception e)
