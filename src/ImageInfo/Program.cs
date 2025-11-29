@@ -61,6 +61,26 @@ class Program
                         Console.WriteLine($"功能31执行失败: {ex.Message}");
                         return 1;
                     }
+                case "32":
+                    // 功能32：文件归档（FileArchiver）
+                    Console.WriteLine("[功能32] 文件归档：将图片文件安全归档到历史目录，包含多重保护机制，风险操作请谨慎！\n");
+                    try
+                    {
+                        var archiverType = Type.GetType("ImageAnalyzerCore.FileArchiver, ImageInfo");
+                        if (archiverType == null)
+                        {
+                            Console.WriteLine("未找到 FileArchiver 类，请检查项目引用和命名空间。");
+                            return 1;
+                        }
+                        dynamic archiver = Activator.CreateInstance(archiverType)!;
+                        archiver.ExecuteArchiving();
+                        return 0;
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"功能32执行失败: {ex.Message}");
+                        return 1;
+                    }
                 default:
                     return RunNormalMode(args);
             }
