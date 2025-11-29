@@ -27,15 +27,40 @@ class Program
                 case "22": return LaunchFunction(folder, "mode4", "功能22：选择性转换");
                 case "7": return LaunchFunction(folder, "mode7", "功能7：分析词频");
                 case "8":
-                    // 功能8：只扫描特殊：98分目录，正向词核心词导出到指定txt
+                    // ...existing code...
                     string specialFolder = @"C:\stable-diffusion-webui\outputs\txt2img-images\特殊：98分";
                     string outputTxt = @"C:\个人数据\pythonCode\0-SD-WEBUI_API_test\中间核心词.txt";
-                    // Function8Debug.PrintImageCount 已移除
-                    // 先完整执行功能2（自动生成并打开Excel）
                     DevelopmentModeService.RunScanMode2(specialFolder);
-                    // 导出按创建时间降序的核心正向词到txt
                     Function8Exporter.ExportCorePositivePrompts(specialFolder, outputTxt);
                     return 0;
+                case "31":
+                    // 功能31：评分图片提取（ScoreOrganizer）
+                    Console.WriteLine("[功能31] 评分图片提取：将历史目录下指定评分或评分范围的图片提取出来，便于人工检验\n");
+                    Console.WriteLine("请输入目标评分（如 85 或 80-89）：");
+                    string? scoreInput = Console.ReadLine();
+                    if (string.IsNullOrWhiteSpace(scoreInput))
+                    {
+                        Console.WriteLine("未输入评分，操作已取消。");
+                        return 1;
+                    }
+                    try
+                    {
+                        // 反射式加载 ScoreOrganizer
+                        var scoreOrganizerType = Type.GetType("ImageAnalyzerCore.ScoreOrganizer, ImageInfo");
+                        if (scoreOrganizerType == null)
+                        {
+                            Console.WriteLine("未找到 ScoreOrganizer 类，请检查项目引用和命名空间。");
+                            return 1;
+                        }
+                        dynamic organizer = Activator.CreateInstance(scoreOrganizerType)!;
+                        organizer.OrganizeFiles(scoreInput);
+                        return 0;
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"功能31执行失败: {ex.Message}");
+                        return 1;
+                    }
                 default:
                     return RunNormalMode(args);
             }
