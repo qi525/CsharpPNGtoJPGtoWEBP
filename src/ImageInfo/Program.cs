@@ -27,7 +27,7 @@ class Program
                 case "22": return LaunchFunction(folder, "mode4", "功能22：选择性转换");
                 case "7": return LaunchFunction(folder, "mode7", "功能7：分析词频");
                 case "8":
-                    // ...existing code...
+                    // 功能8：获取评分98分文件夹里的tag，且按时间顺序排名（从最近到历史）
                     string specialFolder = @"C:\stable-diffusion-webui\outputs\txt2img-images\特殊：98分";
                     string outputTxt = @"C:\个人数据\pythonCode\0-SD-WEBUI_API_test\中间核心词.txt";
                     DevelopmentModeService.RunScanMode2(specialFolder);
