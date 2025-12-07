@@ -70,6 +70,12 @@ hydrangea, white_border, looking_back,
 #光源
 front_lighting, even_lighting, studio_lighting, key_light, fill_light, light_particles, no_backlighting, no_sidelighting,
 front_lighting, even_lighting, studio_lighting, key_light, fill_light,
+blue_background, blue_background, 
+white_background, white_background, 
+bright_foreground, evenly_lit_body, well-lit, 
+
+
+
 
 
 
