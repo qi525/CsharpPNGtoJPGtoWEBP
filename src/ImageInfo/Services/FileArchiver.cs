@@ -83,6 +83,35 @@ namespace ImageAnalyzerCore
                 return;
             }
 
+            // 预览：按目标日期文件夹分组统计
+            var previewGroups = filesToArchive
+                .GroupBy(f => DateTime.Now.ToString("yyyy-MM-dd")) // 目前所有文件都归档到当天
+                .ToDictionary(g => g.Key, g => g.ToList());
+
+            Console.WriteLine("\n--- 归档预览 ---");
+            foreach (var kvp in previewGroups)
+            {
+                string dateFolder = kvp.Key;
+                int count = kvp.Value.Count;
+                Console.WriteLine($"日期文件夹: {dateFolder}  归档数量: {count}");
+                foreach (var file in kvp.Value.Take(10)) // 只预览前10个文件，避免刷屏
+                {
+                    Console.WriteLine($"  - {file}");
+                }
+                if (count > 10)
+                {
+                    Console.WriteLine($"  ... 还有 {count - 10} 个文件未显示");
+                }
+            }
+            Console.WriteLine($"\n总计待归档文件: {totalFiles} 个");
+            Console.WriteLine("是否继续归档？输入 y 确认，其他键取消：");
+            var confirm = Console.ReadLine();
+            if (confirm == null || !confirm.Trim().Equals("y", StringComparison.OrdinalIgnoreCase))
+            {
+                Console.WriteLine("[INFO] 用户取消归档操作。流程结束。");
+                return;
+            }
+
             // 2. 并行处理文件
             // 【核心重构】：使用 Spectre.Console 替换 ShellProgressBar
             AnsiConsole.Progress()
