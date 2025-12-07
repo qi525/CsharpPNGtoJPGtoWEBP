@@ -26,6 +26,7 @@ class Program
                 case "21": return LaunchFunction(folder, "verify1", "功能21：同时运行三种转换模式");
                 case "22": return LaunchFunction(folder, "mode4", "功能22：选择性转换");
                 case "7": return LaunchFunction(folder, "mode7", "功能7：分析词频");
+                //功能8和功能31、32不适合快速启动模式
                 case "8":
                     // 功能8：获取评分98分文件夹里的tag，且按时间顺序排名（从最近到历史）
                     string specialFolder = @"C:\stable-diffusion-webui\outputs\txt2img-images\特殊：98分";
@@ -36,31 +37,23 @@ class Program
                 case "31":
                     // 功能31：评分图片提取（ScoreOrganizer）
                     Console.WriteLine("[功能31] 评分图片提取：将历史目录下指定评分或评分范围的图片提取出来，便于人工检验\n");
-                    Console.WriteLine("请输入目标评分（如 85 或 80-89）：");
-                    string? scoreInput = Console.ReadLine();
-                    if (string.IsNullOrWhiteSpace(scoreInput))
-                    {
-                        Console.WriteLine("未输入评分，操作已取消。");
-                        return 1;
-                    }
-                    try
-                    {
-                        // 反射式加载 ScoreOrganizer
-                        var scoreOrganizerType = Type.GetType("ImageAnalyzerCore.ScoreOrganizer, ImageInfo");
-                        if (scoreOrganizerType == null)
+                        string? scoreInput = "";
+                        while (string.IsNullOrWhiteSpace(scoreInput))
                         {
-                            Console.WriteLine("未找到 ScoreOrganizer 类，请检查项目引用和命名空间。");
+                            Console.WriteLine("请输入目标评分（如 85 或 80-89）：");
+                            scoreInput = Console.ReadLine();
+                        }
+                        try
+                        {
+                            var organizer = new ImageAnalyzerCore.ScoreOrganizer();
+                            organizer.OrganizeFiles(scoreInput);
+                            return 0;
+                        }
+                        catch (Exception ex)
+                        {
+                            Console.WriteLine($"功能31执行失败: {ex.Message}");
                             return 1;
                         }
-                        dynamic organizer = Activator.CreateInstance(scoreOrganizerType)!;
-                        organizer.OrganizeFiles(scoreInput);
-                        return 0;
-                    }
-                    catch (Exception ex)
-                    {
-                        Console.WriteLine($"功能31执行失败: {ex.Message}");
-                        return 1;
-                    }
                 case "32":
                     // 功能32：文件归档（FileArchiver）
                     Console.WriteLine("[功能32] 文件归档：将图片文件安全归档到历史目录，包含多重保护机制，风险操作请谨慎！\n");
