@@ -85,7 +85,7 @@ namespace ImageAnalyzerCore
 
             // 预览：按目标日期文件夹分组统计
             var previewGroups = filesToArchive
-                .GroupBy(f => File.GetLastWriteTime(f).ToString("yyyy-MM-dd")) // 根据文件修改时间分组
+                .GroupBy(f => File.GetCreationTime(f).ToString("yyyy-MM-dd")) // 根据文件创建时间分组
                 .ToDictionary(g => g.Key, g => g.ToList());
 
             Console.WriteLine("\n--- 归档预览 ---");
@@ -256,8 +256,8 @@ namespace ImageAnalyzerCore
             // 【修正点 2 结束】
 
             // 目标：归档的图片文件需要放到文件对应的文件夹目录，例如"2025-11-15"【文件夹格式：yyyy-mm-dd】
-            string todayDate = DateTime.Now.ToString("yyyy-MM-dd");
-            string targetSubDir = Path.Combine(ArchiveTargetDir, todayDate);
+            string fileCreationDate = File.GetCreationTime(filePath).ToString("yyyy-MM-dd");
+            string targetSubDir = Path.Combine(ArchiveTargetDir, fileCreationDate);
             
             // 执行移动操作
             MoveFileSafe(filePath, targetSubDir, task); // 传递 task
