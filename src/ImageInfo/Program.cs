@@ -22,7 +22,7 @@ class Program
                 case "3": return LaunchFunction(folder, "tfidf", "功能3：自定义关键词标记");
                 case "4": return LaunchFunction(folder, "scorer", "功能4：TF-IDF关键词提取");
                 case "5": return LaunchFunction(folder, "predict", "功能5：个性化评分预测");
-                case "6": return LaunchFunction(folder, "rename", "功能6：图片文件重命名");
+                case "6": return LaunchFunction(folder, "rename", "功能6：图片文件的特征与分数重命名");
                 case "21": return LaunchFunction(folder, "verify1", "功能21：同时运行三种转换模式");
                 case "22": return LaunchFunction(folder, "mode4", "功能22：选择性转换");
                 case "7": return LaunchFunction(folder, "mode7", "功能7：分析词频");

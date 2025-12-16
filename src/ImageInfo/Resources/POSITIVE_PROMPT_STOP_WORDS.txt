@@ -60,10 +60,9 @@ flat_color, anime_coloring,
 hydrangea, white_border, looking_back, 
 
 
-
-
-
-
+#lora类，母猪
+<lora:mature body:1>,female, 
+female, girl, 
 
 
 
